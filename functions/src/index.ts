@@ -55,12 +55,28 @@ function stockholmDate(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-async function scrape(source: Scraper): Promise<ExpertPick[]> {
+async function scrapeOnce(source: Scraper, useAI: boolean): Promise<ExpertPick[]> {
   const index = await fetchHtml(source.indexUrl); let articleUrl = source.indexUrl;
   try { articleUrl = findCurrentArticle(index, source.indexUrl); } catch { /* index may itself contain the coupon */ }
   const html = articleUrl === source.indexUrl ? index : await fetchHtml(articleUrl);
   try { const picks = source.parse(html, articleUrl); validatePicks(picks); return picks; }
-  catch (parserError) { const picks = await extractPicksWithAI(html, source.id, articleUrl); if (!picks) throw parserError; validatePicks(picks); return picks; }
+  catch (parserError) {
+    logger.warn('Parsern hittade inte en komplett kupong', { source: source.id, articleUrl, htmlBytes: html.length, title: html.match(/<title[^>]*>([^<]*)/i)?.[1]?.trim() });
+    if (!useAI) throw parserError;
+    const picks = await extractPicksWithAI(html, source.id, articleUrl); if (!picks) throw parserError; validatePicks(picks); return picks;
+  }
+}
+
+async function scrape(source: Scraper): Promise<ExpertPick[]> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { return await scrapeOnce(source, attempt === 3); }
+    catch (error) {
+      lastError = error;
+      if (attempt < 3) { logger.warn('Källhämtning misslyckades; försöker igen', { source: source.id, attempt }); await new Promise((resolve) => setTimeout(resolve, attempt * 750)); }
+    }
+  }
+  throw lastError;
 }
 
 export async function updateCurrentRound(): Promise<{ published: boolean; roundDate: string }> {

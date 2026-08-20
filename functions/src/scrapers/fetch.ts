@@ -1,9 +1,11 @@
 import * as cheerio from 'cheerio';
 
-const USER_AGENT = 'StryktipsetExpertkonsensus/1.0 (+contact: configure-before-deploy)';
+// Några WordPress-/CDN-skydd returnerar en tom kontrollsida till uppenbara bot-UA:n,
+// trots HTTP 200. Vi hämtar samma publika HTML som en vanlig, modern webbläsare.
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 export async function fetchHtml(url: string): Promise<string> {
-  const response = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml' }, signal: AbortSignal.timeout(15_000) });
+  const response = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'accept-language': 'sv-SE,sv;q=0.9,en;q=0.7', 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`HTTP_${response.status}: ${url}`);
   return response.text();
 }
