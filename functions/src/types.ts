@@ -26,7 +26,7 @@ export interface OfficialMatch {
   matchNumber: number; homeTeam: string; awayTeam: string;
   distribution: Record<BaseSign, number>; odds?: Record<BaseSign, number>;
 }
-export interface OfficialCoupon { roundDate: string; drawNumber: number; updatedAt: string; matches: OfficialMatch[]; sourceUrl: string; }
+export interface OfficialCoupon { roundDate: string; drawNumber: number; regCloseTime: string; updatedAt: string; matches: OfficialMatch[]; sourceUrl: string; }
 
 export interface SourceStatus { status: 'OK' | 'ERROR'; updatedAt: string; lastSuccessfulUpdate?: string; message?: string; count?: number; }
 export interface RoundDocument {
@@ -35,7 +35,7 @@ export interface RoundDocument {
   publicDistribution: null; highChaparral: { tips: Tip[]; rows: number; pivots: number[]; singleRow: BaseSign[]; estimatedOdds?: number };
 }
 
-export interface OfficialResult { roundDate: string; drawNumber: number; outcomes: BaseSign[]; }
+export interface OfficialResult { roundDate: string; drawNumber: number; outcomes: BaseSign[]; payouts: Partial<Record<10 | 11 | 12 | 13, number>>; }
 export interface ExpertStat {
   expertId: string; expert: string; source: SourceId; rounds: number; matches: number;
   coveredHits: number; precisionPoints: number; singlePicks: number; singleHits: number;

@@ -14,7 +14,25 @@ export function parseOfficialResult(value: unknown): OfficialResult {
   });
   const close = result.regCloseTime;
   if (typeof close !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(close)) throw new Error('RESULT_DATE_MISSING');
-  return { roundDate: close.slice(0, 10), drawNumber: Number(result.drawNumber), outcomes };
+  const payouts: Partial<Record<10 | 11 | 12 | 13, number>> = {};
+  if (Array.isArray(result.distribution)) for (const tier of result.distribution) {
+    const item = tier as { name?: string; amount?: string | number }; const correct = Number(item.name?.match(/(10|11|12|13)/)?.[1]);
+    const amount = typeof item.amount === 'string' ? Number(item.amount.replace(/\s/g, '').replace(',', '.')) : Number(item.amount);
+    if ([10, 11, 12, 13].includes(correct) && Number.isFinite(amount)) payouts[correct as 10 | 11 | 12 | 13] = amount;
+  }
+  return { roundDate: close.slice(0, 10), drawNumber: Number(result.drawNumber), outcomes, payouts };
+}
+
+export function scoreSystem(tips: string[], result: OfficialResult): { maxCorrect: number; winningRows: Record<string, number>; payout: number } {
+  let ways = Array<number>(14).fill(0); ways[0] = 1;
+  tips.forEach((tip, index) => {
+    const correctChoices = tip.includes(result.outcomes[index]) ? 1 : 0; const wrongChoices = tip.length - correctChoices; const next = Array<number>(14).fill(0);
+    ways.forEach((count, correct) => { if (!count) return; next[correct + 1] += count * correctChoices; next[correct] += count * wrongChoices; }); ways = next;
+  });
+  const winningRows = Object.fromEntries([10, 11, 12, 13].map((correct) => [String(correct), ways[correct]]));
+  const maxCorrect = ways.reduce((best, count, correct) => count ? correct : best, 0);
+  const payout = [10, 11, 12, 13].reduce((sum, correct) => sum + ways[correct] * (result.payouts[correct as 10 | 11 | 12 | 13] ?? 0), 0);
+  return { maxCorrect, winningRows, payout: Number(payout.toFixed(2)) };
 }
 
 export function addRoundToStats(previous: ExpertStatsDocument | undefined, matches: ConsensusMatch[], result: OfficialResult, now: string): ExpertStatsDocument {

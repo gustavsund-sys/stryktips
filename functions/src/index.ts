@@ -1,5 +1,5 @@
 import { cert, initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -14,7 +14,7 @@ import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understrecka
 import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
 import { omitUndefined } from './persistence';
-import { addRoundToStats, parseOfficialResult, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
+import { addRoundToStats, parseOfficialResult, scoreSystem, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
 import { SIGNS, type ConsensusMatch, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -34,9 +34,9 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
     const response = await fetch(SVENSKA_SPEL_RESULTS_URL, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) throw new Error(`RESULT_HTTP_${response.status}`);
     const result = parseOfficialResult(await response.json());
-    const roundRef = db.doc(`rounds/${result.roundDate}`); const statsRef = db.doc('expertStats/current');
+    const roundRef = db.doc(`rounds/${result.roundDate}`); const statsRef = db.doc('expertStats/current'); const claimRef = db.doc(`claimRounds/${result.roundDate}`);
     const settled = await db.runTransaction(async (transaction) => {
-      const [roundSnap, statsSnap] = await Promise.all([transaction.get(roundRef), transaction.get(statsRef)]);
+      const [roundSnap, statsSnap, claimSnap] = await Promise.all([transaction.get(roundRef), transaction.get(statsRef), transaction.get(claimRef)]);
       if (!roundSnap.exists) return false;
       const roundData = roundSnap.data();
       if (roundData?.officialResult?.drawNumber === result.drawNumber) return false;
@@ -45,10 +45,23 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
       const stats = addRoundToStats(statsSnap.exists ? statsSnap.data() as ExpertStatsDocument : undefined, round.matches, result, now);
       transaction.set(roundRef, { officialResult: { ...result, settledAt: now } }, { merge: true });
       transaction.set(statsRef, stats);
+      const claim = claimSnap.data();
+      if (claimSnap.exists && claim?.status === 'locked' && Array.isArray(claim.finalTips)) transaction.set(claimRef, { status: 'settled', result: scoreSystem(claim.finalTips, result), settledAt: FieldValue.serverTimestamp() }, { merge: true });
       return true;
     });
     return { settled, roundDate: result.roundDate };
   } catch (error) { logger.warn('Resultatstatistik kunde inte uppdateras; kupongflödet fortsätter', error); return { settled: false }; }
+}
+
+export async function prepareClaimRound(): Promise<{ created: boolean; roundDate: string }> {
+  const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL));
+  if (coupon.roundDate < stockholmDate()) throw new Error('CURRENT_COUPON_NOT_PUBLISHED');
+  const ref = db.doc(`claimRounds/${coupon.roundDate}`);
+  const created = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref); if (snapshot.exists) return false;
+    transaction.create(ref, { roundDate: coupon.roundDate, drawNumber: coupon.drawNumber, status: 'unclaimed', lockAt: Timestamp.fromDate(new Date(coupon.regCloseTime)), createdAt: FieldValue.serverTimestamp() }); return true;
+  });
+  return { created, roundDate: coupon.roundDate };
 }
 
 function stockholmDate(): string {

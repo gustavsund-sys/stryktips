@@ -34,5 +34,5 @@ export function parseSvenskaSpel(html: string, sourceUrl = SVENSKA_SPEL_URL): Of
     return { matchNumber: event.eventNumber, homeTeam, awayTeam, distribution, odds };
   });
   if (matches.length !== 13 || new Set(matches.map((match) => match.matchNumber)).size !== 13) throw new Error(`PARSER_ERROR: Svenska Spel gav ${matches.length}/13 matcher`);
-  return { roundDate: String(draw.regCloseTime).slice(0, 10), drawNumber: draw.drawNumber, updatedAt: state.Draws.loaded?.[drawKey] ?? new Date().toISOString(), matches, sourceUrl };
+  return { roundDate: String(draw.regCloseTime).slice(0, 10), drawNumber: draw.drawNumber, regCloseTime: String(draw.regCloseTime), updatedAt: state.Draws.loaded?.[drawKey] ?? new Date().toISOString(), matches, sourceUrl };
 }
