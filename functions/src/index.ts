@@ -14,7 +14,8 @@ import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understrecka
 import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
 import { omitUndefined } from './persistence';
-import { SIGNS, type ConsensusMatch, type ExpertPick, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
+import { addRoundToStats, parseOfficialResult, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
+import { SIGNS, type ConsensusMatch, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 initializeApp(serviceAccountJson ? { credential: cert(JSON.parse(serviceAccountJson)) } : undefined);
@@ -27,6 +28,28 @@ const scrapers: Scraper[] = [
   { id: 'understreckat', indexUrl: UNDERSTRECKAT_INDEX, parse: parseUnderstreckat },
   { id: 'tipsmedoss', indexUrl: TIPSMEDOSS_INDEX, parse: parseTipsmedoss },
 ];
+
+export async function updateExpertStats(): Promise<{ settled: boolean; roundDate?: string }> {
+  try {
+    const response = await fetch(SVENSKA_SPEL_RESULTS_URL, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error(`RESULT_HTTP_${response.status}`);
+    const result = parseOfficialResult(await response.json());
+    const roundRef = db.doc(`rounds/${result.roundDate}`); const statsRef = db.doc('expertStats/current');
+    const settled = await db.runTransaction(async (transaction) => {
+      const [roundSnap, statsSnap] = await Promise.all([transaction.get(roundRef), transaction.get(statsRef)]);
+      if (!roundSnap.exists) return false;
+      const roundData = roundSnap.data();
+      if (roundData?.officialResult?.drawNumber === result.drawNumber) return false;
+      const round = roundData as RoundDocument;
+      const now = new Date().toISOString();
+      const stats = addRoundToStats(statsSnap.exists ? statsSnap.data() as ExpertStatsDocument : undefined, round.matches, result, now);
+      transaction.set(roundRef, { officialResult: { ...result, settledAt: now } }, { merge: true });
+      transaction.set(statsRef, stats);
+      return true;
+    });
+    return { settled, roundDate: result.roundDate };
+  } catch (error) { logger.warn('Resultatstatistik kunde inte uppdateras; kupongflödet fortsätter', error); return { settled: false }; }
+}
 
 function stockholmDate(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());

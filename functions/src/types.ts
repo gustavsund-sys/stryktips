@@ -34,3 +34,10 @@ export interface RoundDocument {
   sources: Record<string, SourceStatus>; expertCount: number; systemRows: number;
   publicDistribution: null; highChaparral: { tips: Tip[]; rows: number; pivots: number[]; singleRow: BaseSign[]; estimatedOdds?: number };
 }
+
+export interface OfficialResult { roundDate: string; drawNumber: number; outcomes: BaseSign[]; }
+export interface ExpertStat {
+  expertId: string; expert: string; source: SourceId; rounds: number; matches: number;
+  coveredHits: number; precisionPoints: number; singlePicks: number; singleHits: number;
+}
+export interface ExpertStatsDocument { updatedAt: string; settledRounds: number; lastRoundDate: string; experts: ExpertStat[]; }

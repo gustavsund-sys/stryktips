@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { connectFirestoreEmulator, doc, getDoc, getFirestore, serverTimestamp, writeBatch } from 'firebase/firestore';
-import type { AliasCandidate, AliasReview, LatestRunStatus, Round } from '../types';
+import type { AliasCandidate, AliasReview, ExpertStats, LatestRunStatus, Round } from '../types';
 import { demoRound } from '../data/demo';
 
 const config = { apiKey: import.meta.env.VITE_FIREBASE_API_KEY, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, appId: import.meta.env.VITE_FIREBASE_APP_ID };
@@ -22,6 +22,12 @@ export async function getLatestRunStatus(): Promise<LatestRunStatus | undefined>
     const snapshot = await getDoc(doc(db, 'systemStatus', 'latest'));
     return snapshot.exists() ? snapshot.data() as LatestRunStatus : undefined;
   } catch { return undefined; }
+}
+
+export async function getExpertStats(): Promise<ExpertStats | undefined> {
+  if (!db) return undefined;
+  try { const snapshot = await getDoc(doc(db, 'expertStats', 'current')); return snapshot.exists() ? snapshot.data() as ExpertStats : undefined; }
+  catch { return undefined; }
 }
 
 export async function getAliasReview(): Promise<AliasReview | undefined> {

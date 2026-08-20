@@ -7,6 +7,7 @@ on:
     # sommar-/vintertid; tidsvakten släpper bara igenom de exakta tiderna.
     - cron: '0 2,3 * * 5'
     - cron: '0 10,11 * * 6'
+    - cron: '0 0,1 * * 1'
 
 permissions:
   contents: read
@@ -20,16 +21,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should-run: ${{ steps.time.outputs.should-run }}
+      mode: ${{ steps.time.outputs.mode }}
     steps:
       - id: time
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           LOCAL_TIME="$(TZ=Europe/Stockholm date +'%u %H:%M')"
-          if [ "$EVENT_NAME" != "schedule" ] || [ "$LOCAL_TIME" = "5 04:00" ] || [ "$LOCAL_TIME" = "6 12:00" ]; then
+          if [ "$EVENT_NAME" != "schedule" ] || [ "$LOCAL_TIME" = "5 04:00" ] || [ "$LOCAL_TIME" = "6 12:00" ] || [ "$LOCAL_TIME" = "1 01:00" ]; then
             echo "should-run=true" >> "$GITHUB_OUTPUT"
           else
             echo "should-run=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$EVENT_NAME" = "schedule" ] && [ "$LOCAL_TIME" = "1 01:00" ]; then
+            echo "mode=results" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=full" >> "$GITHUB_OUTPUT"
           fi
 
   update:
@@ -53,7 +60,11 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: pnpm exec firebase deploy --only firestore:rules --project stryktipset-46f61
       - name: Scrape, validate and publish
+        if: needs.schedule-check.outputs.mode == 'full'
         run: node functions/lib/run-update.js
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_SCRAPER_MODEL: ${{ vars.OPENAI_SCRAPER_MODEL }}
+      - name: Settle results and update expert statistics
+        if: needs.schedule-check.outputs.mode == 'results'
+        run: node functions/lib/run-results.js
