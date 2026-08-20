@@ -11,6 +11,7 @@ import { validatePicks } from './scrapers/parser';
 import { parseSvenskaSpel, SVENSKA_SPEL_URL } from './scrapers/svenskaspel';
 import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
 import { sameTeam } from './normalization/teams';
+import { omitUndefined } from './persistence';
 import { SIGNS, type ConsensusMatch, type ExpertPick, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -52,7 +53,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   }
   const coreSourcesOk = (['rekatochklart','bettingstugan'] as const).every((source) => statuses[source]?.status === 'OK');
   if (!coreSourcesOk) {
-    await db.collection('scrapeRuns').add({ at: now, statuses, published: false, reason: 'Alla källor måste valideras före publicering', createdAt: FieldValue.serverTimestamp() });
+    await db.collection('scrapeRuns').add({ at: now, statuses: omitUndefined(statuses), published: false, reason: 'Alla källor måste valideras före publicering', createdAt: FieldValue.serverTimestamp() });
     logger.warn('Scrape validerades inte; befintlig kupong behålls', statuses); return { published: false, roundDate: previous?.roundDate ?? stockholmDate() };
   }
   let matches = buildConsensus(picks); let officialCoupon: OfficialCoupon | undefined;
@@ -71,7 +72,8 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   if (statuses.svenskaspel.status === 'ERROR' && previous) matches = matches.map((match) => { const old = previous.matches.find((item) => item.matchNumber === match.matchNumber && sameTeam(item.homeTeam, match.homeTeam) && sameTeam(item.awayTeam, match.awayTeam)); return old?.publicDistribution ? { ...match, publicDistribution: old.publicDistribution, odds: old.odds, expertDeviation: old.expertDeviation } : match; });
   const roundDate = process.env.ROUND_DATE || officialCoupon?.roundDate || previous?.roundDate || stockholmDate();
   const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null };
-  const batch = db.batch(); batch.set(db.doc('stryktipset/current'), document); batch.set(db.doc(`rounds/${roundDate}`), document, { merge: true }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses, published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
+  const firestoreDocument = omitUndefined(document);
+  const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
   logger.info('Kupong publicerad', { roundDate, matches: matches.length, experts: document.expertCount }); return { published: true, roundDate };
 }
 
