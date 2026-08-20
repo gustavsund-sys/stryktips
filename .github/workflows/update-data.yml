@@ -38,7 +38,7 @@ jobs:
       - run: pnpm --dir functions test
       - run: pnpm --dir functions build
       - name: Deploy Firestore rules
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: pnpm exec firebase deploy --only firestore:rules --project stryktipset-46f61
       - name: Scrape, validate and publish
         run: node functions/lib/run-update.js
