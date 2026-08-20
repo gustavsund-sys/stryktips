@@ -70,6 +70,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   const coreSourcesOk = (['rekatochklart','bettingstugan'] as const).every((source) => statuses[source]?.status === 'OK');
   if (!coreSourcesOk) {
     await db.doc('aliasReviews/current').set(aliasCandidates.length ? { status: 'pending', updatedAt: now, roundDate: officialResult.status === 'fulfilled' ? officialResult.value.roundDate : stockholmDate(), candidates: aliasCandidates } : { status: 'none', updatedAt: now, candidates: [] });
+    await db.doc('systemStatus/latest').set({ at: now, published: false, roundDate: officialResult.status === 'fulfilled' ? officialResult.value.roundDate : previous?.roundDate ?? stockholmDate(), statuses: omitUndefined(statuses), reason: 'En eller flera obligatoriska expertkällor kunde inte valideras' });
     await db.collection('scrapeRuns').add({ at: now, statuses: omitUndefined(statuses), published: false, reason: 'Alla källor måste valideras före publicering', createdAt: FieldValue.serverTimestamp() });
     logger.warn('Scrape validerades inte; befintlig kupong behålls', statuses); return { published: false, roundDate: previous?.roundDate ?? stockholmDate() };
   }
@@ -90,7 +91,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   const roundDate = process.env.ROUND_DATE || officialCoupon?.roundDate || previous?.roundDate || stockholmDate();
   const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches) };
   const firestoreDocument = omitUndefined(document);
-  const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.doc('aliasReviews/current'), { status: 'none', updatedAt: now, candidates: [] }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
+  const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.doc('aliasReviews/current'), { status: 'none', updatedAt: now, candidates: [] }); batch.set(db.doc('systemStatus/latest'), { at: now, published: true, roundDate, statuses: omitUndefined(statuses) }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
   logger.info('Kupong publicerad', { roundDate, matches: matches.length, experts: document.expertCount }); return { published: true, roundDate };
 }
 

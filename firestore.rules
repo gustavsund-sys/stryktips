@@ -7,6 +7,7 @@ service cloud.firestore {
     match /stryktipset/{document} { allow read: if true; allow write: if false; }
     match /rounds/{document} { allow read: if true; allow write: if false; }
     match /scrapeRuns/{document} { allow read, write: if false; }
+    match /systemStatus/{document} { allow read: if true; allow write: if false; }
     match /aliasReviews/{document} {
       allow read: if true;
       allow create, delete: if false;
