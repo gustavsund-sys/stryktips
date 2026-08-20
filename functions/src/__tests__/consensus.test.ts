@@ -21,10 +21,12 @@ describe('konsensusmotor', () => {
     const priced = matches.map((match, index) => ({ ...match, odds: { '1': 1.8 + index / 10, X: 3.2 + index / 10, '2': 4.5 + index / 10 } }));
     const system = buildHighChaparral(priced, 300, 6);
     expect(system.tips).toHaveLength(13);
+    expect(system.singleRow).toHaveLength(13);
     expect(system.rows).toBe(288);
     expect(system.pivots.length).toBeGreaterThanOrEqual(6);
     expect(system.pivots.every((number) => priced[number - 1].classification !== 'strong')).toBe(true);
     expect(system.tips.every((tip, index) => [...tip].every((sign) => priced[index].support[sign as BaseSign] > 0))).toBe(true);
+    expect(system.singleRow.every((sign, index) => priced[index].support[sign] > 0)).toBe(true);
     expect(system.estimatedOdds).toBeGreaterThan(0);
   });
 });

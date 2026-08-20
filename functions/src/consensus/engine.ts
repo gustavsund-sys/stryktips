@@ -62,7 +62,7 @@ export function limitSystemRows(matches: ConsensusMatch[], maxRows = 300): Conse
 
 const price = (match: ConsensusMatch, sign: BaseSign): number => match.odds?.[sign] ?? (match.publicDistribution?.[sign] ? 100 / match.publicDistribution[sign] : 1);
 
-export function buildHighChaparral(matches: ConsensusMatch[], maxRows = 300, minPivots = 6): { tips: Tip[]; rows: number; pivots: number[]; estimatedOdds?: number } {
+export function buildHighChaparral(matches: ConsensusMatch[], maxRows = 300, minPivots = 6): { tips: Tip[]; rows: number; pivots: number[]; singleRow: BaseSign[]; estimatedOdds?: number } {
   const baselines = matches.map((match) => match.consensusSign ?? [...SIGNS].sort((a, b) => match.support[b] - match.support[a] || order(a) - order(b))[0]);
   const candidates = matches.flatMap((match, index) => {
     if (match.classification === 'strong') return [];
@@ -93,5 +93,5 @@ export function buildHighChaparral(matches: ConsensusMatch[], maxRows = 300, min
   const rows = Math.max(...states.keys()); const tips = states.get(rows)!.tips;
   const allOddsAvailable = matches.every((match, index) => Number.isFinite(match.odds?.[primary[index]]));
   const estimatedOdds = allOddsAvailable ? Number(matches.reduce((total, match, index) => total * match.odds![primary[index]], 1).toFixed(2)) : undefined;
-  return { tips, rows, pivots: opportunities.map(({ index }) => matches[index].matchNumber), estimatedOdds };
+  return { tips, rows, pivots: opportunities.map(({ index }) => matches[index].matchNumber), singleRow: primary, estimatedOdds };
 }
