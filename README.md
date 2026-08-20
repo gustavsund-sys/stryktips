@@ -56,7 +56,7 @@ Parser-fixtures finns i `functions/src/__tests__/fixtures`. De testar 13 unika m
 4. Kontrollera kontaktuppgiften i scraper-funktionens User-Agent.
 5. Firestore-regler och datauppdatering körs av GitHub Actions. Frontend deployas automatiskt till GitHub Pages från `main`.
 
-Produktionsuppdateringen körs via `.github/workflows/update-data.yml`, inte Cloud Functions. Schemat kör varje fredag klockan 04:00 svensk tid och skapar grundraden från Rekatochklart och Bettingstugan. En andra automatisk körning görs lördag klockan 12:00 svensk tid för att ta med Understreckat, vars tips normalt publiceras under lördagen. Konsensus räknas då om och ersätter fredagsraden endast om hela den nya datan valideras. Workflowet kan fortfarande startas manuellt från GitHub Actions som reserv. Därmed räcker Firebase Spark-planen.
+Produktionsuppdateringen körs via `.github/workflows/update-data.yml`, inte Cloud Functions. Schemat kör varje fredag klockan 04:00 svensk tid och skapar grundraden från Rekatochklart och Bettingstugan samt tar med Tipsmedoss när deras aktuella förslag är publicerat. En andra automatisk körning görs lördag klockan 12:00 svensk tid för att ta med Understreckat, vars tips normalt publiceras under lördagen. Konsensus räknas då om och ersätter fredagsraden endast om hela den nya datan valideras. Workflowet kan fortfarande startas manuellt från GitHub Actions som reserv. Därmed räcker Firebase Spark-planen.
 
 Ett Firebase service account används endast av GitHub Actions och lagras som repository-secret `FIREBASE_SERVICE_ACCOUNT`. Firestore-reglerna ger webbläsare publik läsrätt men ingen skrivrätt; endast workflowets service account skriver data.
 

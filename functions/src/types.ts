@@ -1,7 +1,7 @@
 export const SIGNS = ['1', 'X', '2'] as const;
 export type BaseSign = (typeof SIGNS)[number];
 export type Tip = '1' | 'X' | '2' | '1X' | 'X2' | '12' | '1X2';
-export type SourceId = 'rekatochklart' | 'bettingstugan' | 'understreckat';
+export type SourceId = 'rekatochklart' | 'bettingstugan' | 'understreckat' | 'tipsmedoss';
 
 export interface ExpertPick {
   matchNumber: number;

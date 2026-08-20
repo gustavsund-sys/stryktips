@@ -11,6 +11,7 @@ import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklar
 import { validatePicks } from './scrapers/parser';
 import { parseSvenskaSpel, SVENSKA_SPEL_URL } from './scrapers/svenskaspel';
 import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
+import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
 import { omitUndefined } from './persistence';
 import { SIGNS, type ConsensusMatch, type ExpertPick, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
@@ -24,6 +25,7 @@ const scrapers: Scraper[] = [
   { id: 'rekatochklart', indexUrl: REKATOCHKLART_INDEX, parse: parseRekatochklart },
   { id: 'bettingstugan', indexUrl: BETTINGSTUGAN_INDEX, parse: parseBettingstugan },
   { id: 'understreckat', indexUrl: UNDERSTRECKAT_INDEX, parse: parseUnderstreckat },
+  { id: 'tipsmedoss', indexUrl: TIPSMEDOSS_INDEX, parse: parseTipsmedoss },
 ];
 
 function stockholmDate(): string {

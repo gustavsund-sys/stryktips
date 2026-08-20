@@ -5,6 +5,7 @@ import { parseBettingstugan } from '../scrapers/bettingstugan';
 import { parseRekatochklart } from '../scrapers/rekatochklart';
 import { validatePicks } from '../scrapers/parser';
 import { parseUnderstreckat } from '../scrapers/understreckat';
+import { parseTipsmedoss } from '../scrapers/tipsmedoss';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
 describe('källparser', () => {
@@ -12,4 +13,5 @@ describe('källparser', () => {
   it('läser och normaliserar 13 Bettingstugan-rader', () => { const picks = parseBettingstugan(fixture('bettingstugan.html'), 'https://example.test/bs'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[7].tip).toBe('12'); });
   it('vägrar publicera en ofullständig kupong', () => { const picks = parseRekatochklart('<article><p>1. A - B 1</p></article>', 'https://example.test'); expect(() => validatePicks(picks)).toThrow(/1\/13/); });
   it('läser Understreckats publicerade system som en separat expert', () => { const picks = parseUnderstreckat(fixture('understreckat.html'), 'https://understreckat.se/stryktipset/v33-2026'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'1X', expert:'Understreckat / Redaktionen', source:'understreckat' }); });
+  it('läser Tipsmedoss veckoförslag och normaliserar tecken med mellanrum', () => { const picks = parseTipsmedoss(fixture('tipsmedoss.html'), 'https://tipsmedoss.com/2026/stryktipsforslag/stryktipset-22-8/'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'12', expert:'Tipsmedoss / Kamil Sytniowski', source:'tipsmedoss' }); });
 });

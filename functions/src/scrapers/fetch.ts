@@ -18,6 +18,7 @@ export function findCurrentArticle(indexHtml: string, baseUrl: string): string {
       if (/\/speltips\/stryktipset-/.test(path)) score += 30;
       if (/\/tips\/stryktipset\/[^/]+/.test(path)) score += 30;
       if (/\/stryktipset\/v\d{1,2}-\d{4}/.test(path)) score += 30;
+      if (/\/stryktipsforslag\/stryktipset-/.test(path)) score += 30;
       if (/analys|tips|vecka|v\d/.test(`${path} ${$(element).text().toLowerCase()}`)) score += 10;
       return score ? { url: url.toString(), score } : null;
     } catch { return null; }
