@@ -1,7 +1,7 @@
 const aliases: Record<string, string> = {
   'man utd': 'manchester united', 'man united': 'manchester united', 'man city': 'manchester city',
-  'spurs': 'tottenham hotspur', 'wolves': 'wolverhampton wanderers', 'nottm forest': 'nottingham forest',
-  'sheff utd': 'sheffield united', 'sheff wed': 'sheffield wednesday', 'qpr': 'queens park rangers',
+  'spurs': 'tottenham hotspur', 'wolves': 'wolverhampton wanderers', 'wolverhampton': 'wolverhampton wanderers', 'nottm forest': 'nottingham forest',
+  'sheff utd': 'sheffield united', 'sheffield u': 'sheffield united', 'sheff wed': 'sheffield wednesday', 'qpr': 'queens park rangers',
   'psg': 'paris saint germain', 'inter': 'internazionale',
 };
 
