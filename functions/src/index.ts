@@ -11,7 +11,7 @@ import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklar
 import { validatePicks } from './scrapers/parser';
 import { parseSvenskaSpel, SVENSKA_SPEL_URL } from './scrapers/svenskaspel';
 import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
-import { sameTeam } from './normalization/teams';
+import { addTeamAlias, sameTeam } from './normalization/teams';
 import { omitUndefined } from './persistence';
 import { SIGNS, type ConsensusMatch, type ExpertPick, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
@@ -41,6 +41,8 @@ async function scrape(source: Scraper): Promise<ExpertPick[]> {
 export async function updateCurrentRound(): Promise<{ published: boolean; roundDate: string }> {
   const now = new Date().toISOString(); const previousSnap = await db.doc('stryktipset/current').get();
   const previous = previousSnap.data() as RoundDocument | undefined;
+  const approvedAliases = await db.collection('teamAliases').get();
+  approvedAliases.forEach((snapshot) => { const alias = snapshot.data(); if (typeof alias.alias === 'string' && typeof alias.canonical === 'string') addTeamAlias(alias.alias, alias.canonical); });
   const [expertResults, officialResult] = await Promise.all([Promise.allSettled(scrapers.map(scrape)), fetchHtml(SVENSKA_SPEL_URL).then((html) => parseSvenskaSpel(html)).then((value) => ({ status: 'fulfilled' as const, value })).catch((reason) => ({ status: 'rejected' as const, reason }))]);
   const picks: ExpertPick[] = []; const statuses: Record<string, SourceStatus> = {};
   expertResults.forEach((result, index) => {
@@ -53,15 +55,19 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
     const mismatch = extraPicks.find((pick) => { const core = corePicks.find((item) => item.matchNumber === pick.matchNumber); return !core || !sameTeam(core.homeTeam, pick.homeTeam) || !sameTeam(core.awayTeam, pick.awayTeam); });
     if (mismatch) { statuses.understreckat = { status:'ERROR', updatedAt:now, lastSuccessfulUpdate:previous?.sources?.understreckat?.lastSuccessfulUpdate, message:`Aktuell analys matchar inte kupongen (match ${mismatch.matchNumber})` }; picks.splice(0, picks.length, ...corePicks); }
   }
+  const aliasCandidates: Array<{ source: SourceId; matchNumber: number; alias: string; canonical: string }> = [];
   if (officialResult.status === 'fulfilled') {
     for (const source of scrapers.map((item) => item.id)) {
       if (statuses[source]?.status !== 'OK') continue;
-      const mismatch = picks.filter((pick) => pick.source === source).find((pick) => { const official = officialResult.value.matches.find((item) => item.matchNumber === pick.matchNumber); return !official || !sameTeam(pick.homeTeam, official.homeTeam) || !sameTeam(pick.awayTeam, official.awayTeam); });
+      const sourceMismatches = picks.filter((pick) => pick.source === source).flatMap((pick) => { const official = officialResult.value.matches.find((item) => item.matchNumber === pick.matchNumber); return !official || !sameTeam(pick.homeTeam, official.homeTeam) || !sameTeam(pick.awayTeam, official.awayTeam) ? [{ pick, official }] : []; });
+      if (sourceMismatches.length && sourceMismatches.length <= 3) sourceMismatches.forEach(({ pick, official }) => { if (!official) return; if (!sameTeam(pick.homeTeam, official.homeTeam)) aliasCandidates.push({ source, matchNumber: pick.matchNumber, alias: pick.homeTeam, canonical: official.homeTeam }); if (!sameTeam(pick.awayTeam, official.awayTeam)) aliasCandidates.push({ source, matchNumber: pick.matchNumber, alias: pick.awayTeam, canonical: official.awayTeam }); });
+      const mismatch = sourceMismatches[0]?.pick;
       if (mismatch) { statuses[source] = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.[source]?.lastSuccessfulUpdate, message: `MATCH_MISMATCH: Svenska Spel match ${mismatch.matchNumber}` }; picks.splice(0, picks.length, ...picks.filter((pick) => pick.source !== source)); }
     }
   }
   const coreSourcesOk = (['rekatochklart','bettingstugan'] as const).every((source) => statuses[source]?.status === 'OK');
   if (!coreSourcesOk) {
+    await db.doc('aliasReviews/current').set(aliasCandidates.length ? { status: 'pending', updatedAt: now, roundDate: officialResult.status === 'fulfilled' ? officialResult.value.roundDate : stockholmDate(), candidates: aliasCandidates } : { status: 'none', updatedAt: now, candidates: [] });
     await db.collection('scrapeRuns').add({ at: now, statuses: omitUndefined(statuses), published: false, reason: 'Alla källor måste valideras före publicering', createdAt: FieldValue.serverTimestamp() });
     logger.warn('Scrape validerades inte; befintlig kupong behålls', statuses); return { published: false, roundDate: previous?.roundDate ?? stockholmDate() };
   }
@@ -82,7 +88,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   const roundDate = process.env.ROUND_DATE || officialCoupon?.roundDate || previous?.roundDate || stockholmDate();
   const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null };
   const firestoreDocument = omitUndefined(document);
-  const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
+  const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.doc('aliasReviews/current'), { status: 'none', updatedAt: now, candidates: [] }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
   logger.info('Kupong publicerad', { roundDate, matches: matches.length, experts: document.expertCount }); return { published: true, roundDate };
 }
 

@@ -1,8 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
+  function isTipsAdmin() {
+    return request.auth != null && request.auth.token.email == 'tstipset@gmail.com';
+  }
   match /databases/{database}/documents {
     match /stryktipset/{document} { allow read: if true; allow write: if false; }
     match /rounds/{document} { allow read: if true; allow write: if false; }
     match /scrapeRuns/{document} { allow read, write: if false; }
+    match /aliasReviews/{document} {
+      allow read: if true;
+      allow create, delete: if false;
+      allow update: if isTipsAdmin()
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'approved'
+        && request.resource.data.candidates == resource.data.candidates;
+    }
+    match /teamAliases/{document} {
+      allow read, delete: if false;
+      allow create, update: if isTipsAdmin()
+        && request.resource.data.keys().hasOnly(['alias', 'canonical', 'approvedAt', 'approvedBy'])
+        && request.resource.data.alias is string
+        && request.resource.data.canonical is string
+        && request.resource.data.alias.size() > 0
+        && request.resource.data.alias.size() <= 80
+        && request.resource.data.canonical.size() > 0
+        && request.resource.data.canonical.size() <= 80
+        && request.resource.data.approvedAt is timestamp
+        && request.resource.data.approvedBy == request.auth.token.email;
+    }
   }
 }
