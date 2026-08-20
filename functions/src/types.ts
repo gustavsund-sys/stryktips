@@ -32,5 +32,5 @@ export interface SourceStatus { status: 'OK' | 'ERROR'; updatedAt: string; lastS
 export interface RoundDocument {
   roundDate: string; updatedAt: string; status: 'ok' | 'partial'; matches: ConsensusMatch[];
   sources: Record<string, SourceStatus>; expertCount: number; systemRows: number;
-  publicDistribution: null;
+  publicDistribution: null; highChaparral: { tips: Tip[]; rows: number; pivots: number[]; estimatedOdds?: number };
 }

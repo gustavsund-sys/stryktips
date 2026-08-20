@@ -59,3 +59,39 @@ export function limitSystemRows(matches: ConsensusMatch[], maxRows = 300): Conse
   }
   return limited;
 }
+
+const price = (match: ConsensusMatch, sign: BaseSign): number => match.odds?.[sign] ?? (match.publicDistribution?.[sign] ? 100 / match.publicDistribution[sign] : 1);
+
+export function buildHighChaparral(matches: ConsensusMatch[], maxRows = 300, minPivots = 6): { tips: Tip[]; rows: number; pivots: number[]; estimatedOdds?: number } {
+  const baselines = matches.map((match) => match.consensusSign ?? [...SIGNS].sort((a, b) => match.support[b] - match.support[a] || order(a) - order(b))[0]);
+  const candidates = matches.flatMap((match, index) => {
+    if (match.classification === 'strong') return [];
+    const baseline = baselines[index];
+    const alternative = [...SIGNS].filter((sign) => sign !== baseline && match.support[sign] > 0).sort((a, b) => price(match, b) - price(match, a) || match.support[b] - match.support[a] || order(a) - order(b))[0];
+    if (!alternative) return [];
+    return [{ index, alternative, valueLift: price(match, alternative) / price(match, baseline), support: match.support[alternative] / match.ballots.length }];
+  }).sort((a, b) => b.valueLift - a.valueLift || b.support - a.support || a.index - b.index);
+  const higherPriced = candidates.filter((candidate) => candidate.valueLift > 1).length;
+  const opportunities = candidates.slice(0, Math.min(candidates.length, Math.max(Math.max(0, minPivots), higherPriced)));
+  const primary = [...baselines]; opportunities.forEach(({ index, alternative }) => { primary[index] = alternative; });
+  type Option = { tip: Tip; quality: number };
+  const options: Option[][] = matches.map((match, index) => {
+    if (match.classification === 'strong') return [{ tip: primary[index] as Tip, quality: price(match, primary[index]) }];
+    const ordered = [primary[index], ...SIGNS.filter((sign) => sign !== primary[index] && match.support[sign] > 0).sort((a, b) => price(match, b) - price(match, a) || match.support[b] - match.support[a] || order(a) - order(b))];
+    return ordered.map((_, width) => { const signs = ordered.slice(0, width + 1); return { tip: asTip(signs), quality: signs.reduce((sum, sign) => sum + price(match, sign), 0) }; });
+  });
+  let states = new Map<number, { tips: Tip[]; quality: number }>([[1, { tips: [], quality: 0 }]]);
+  options.forEach((matchOptions) => {
+    const next = new Map<number, { tips: Tip[]; quality: number }>();
+    states.forEach((state, rows) => matchOptions.forEach((option) => {
+      const nextRows = rows * option.tip.length; if (nextRows > maxRows) return;
+      const candidate = { tips: [...state.tips, option.tip], quality: state.quality + option.quality };
+      if (!next.has(nextRows) || candidate.quality > next.get(nextRows)!.quality) next.set(nextRows, candidate);
+    }));
+    states = next;
+  });
+  const rows = Math.max(...states.keys()); const tips = states.get(rows)!.tips;
+  const allOddsAvailable = matches.every((match, index) => Number.isFinite(match.odds?.[primary[index]]));
+  const estimatedOdds = allOddsAvailable ? Number(matches.reduce((total, match, index) => total * match.odds![primary[index]], 1).toFixed(2)) : undefined;
+  return { tips, rows, pivots: opportunities.map(({ index }) => matches[index].matchNumber), estimatedOdds };
+}
