@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /stryktipset/{document} { allow read: if true; allow write: if false; }
+    match /rounds/{document} { allow read: if true; allow write: if false; }
+    match /scrapeRuns/{document} { allow read, write: if false; }
+  }
+}

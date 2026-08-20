@@ -1,0 +1,2 @@
+import type { Sign } from '../types';
+export function SupportBars({ support, experts }: { support: Record<Sign, number>; experts: number }) { return <div className="support" aria-label="Expertstöd">{(['1','X','2'] as Sign[]).map((sign) => { const percent = Math.round(support[sign] / experts * 100); return <div className="support-row" key={sign}><b>{sign}</b><div className="bar"><i style={{width:`${percent}%`}} /></div><span>{percent}%</span></div>; })}</div>; }

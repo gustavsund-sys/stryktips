@@ -1,0 +1,15 @@
+node_modules/
+functions/node_modules/
+.pnpm-store/
+dist/
+functions/lib/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+.firebase/
+firebase-debug.log*
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store

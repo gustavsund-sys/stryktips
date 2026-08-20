@@ -1,0 +1,44 @@
+name: Update Stryktipset data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - functions/**
+      - firestore.rules
+      - .github/workflows/update-data.yml
+  schedule:
+    # UTC: några gånger tis–tors, tätare fredag och varje timme lördag före spelstopp.
+    - cron: '0 5,11,17 * * 2-4'
+    - cron: '0 5,8,11,14,17,20 * * 5'
+    - cron: '0 5-13 * * 6'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-stryktipset-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir functions test
+      - run: pnpm --dir functions build
+      - name: Deploy Firestore rules
+        if: github.event_name == 'push'
+        run: pnpm exec firebase deploy --only firestore:rules --project stryktipset-46f61
+      - name: Scrape, validate and publish
+        run: node functions/lib/run-update.js
