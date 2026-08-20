@@ -5,6 +5,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { calculateRows, buildConsensus } from './consensus/engine';
 import { findCurrentArticle, fetchHtml } from './scrapers/fetch';
+import { extractPicksWithAI } from './scrapers/ai-fallback';
 import { BETTINGSTUGAN_INDEX, parseBettingstugan } from './scrapers/bettingstugan';
 import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklart';
 import { validatePicks } from './scrapers/parser';
@@ -33,7 +34,8 @@ async function scrape(source: Scraper): Promise<ExpertPick[]> {
   const index = await fetchHtml(source.indexUrl); let articleUrl = source.indexUrl;
   try { articleUrl = findCurrentArticle(index, source.indexUrl); } catch { /* index may itself contain the coupon */ }
   const html = articleUrl === source.indexUrl ? index : await fetchHtml(articleUrl);
-  const picks = source.parse(html, articleUrl); validatePicks(picks); return picks;
+  try { const picks = source.parse(html, articleUrl); validatePicks(picks); return picks; }
+  catch (parserError) { const picks = await extractPicksWithAI(html, source.id, articleUrl); if (!picks) throw parserError; validatePicks(picks); return picks; }
 }
 
 export async function updateCurrentRound(): Promise<{ published: boolean; roundDate: string }> {
@@ -50,6 +52,13 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
     const corePicks = picks.filter((pick) => pick.source !== 'understreckat'); const extraPicks = picks.filter((pick) => pick.source === 'understreckat');
     const mismatch = extraPicks.find((pick) => { const core = corePicks.find((item) => item.matchNumber === pick.matchNumber); return !core || !sameTeam(core.homeTeam, pick.homeTeam) || !sameTeam(core.awayTeam, pick.awayTeam); });
     if (mismatch) { statuses.understreckat = { status:'ERROR', updatedAt:now, lastSuccessfulUpdate:previous?.sources?.understreckat?.lastSuccessfulUpdate, message:`Aktuell analys matchar inte kupongen (match ${mismatch.matchNumber})` }; picks.splice(0, picks.length, ...corePicks); }
+  }
+  if (officialResult.status === 'fulfilled') {
+    for (const source of scrapers.map((item) => item.id)) {
+      if (statuses[source]?.status !== 'OK') continue;
+      const mismatch = picks.filter((pick) => pick.source === source).find((pick) => { const official = officialResult.value.matches.find((item) => item.matchNumber === pick.matchNumber); return !official || !sameTeam(pick.homeTeam, official.homeTeam) || !sameTeam(pick.awayTeam, official.awayTeam); });
+      if (mismatch) { statuses[source] = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.[source]?.lastSuccessfulUpdate, message: `MATCH_MISMATCH: Svenska Spel match ${mismatch.matchNumber}` }; picks.splice(0, picks.length, ...picks.filter((pick) => pick.source !== source)); }
+    }
   }
   const coreSourcesOk = (['rekatochklart','bettingstugan'] as const).every((source) => statuses[source]?.status === 'OK');
   if (!coreSourcesOk) {

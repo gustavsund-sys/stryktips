@@ -2,17 +2,10 @@ name: Update Stryktipset data
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - functions/**
-      - firestore.rules
-      - .github/workflows/update-data.yml
   schedule:
-    # UTC: några gånger tis–tors, tätare fredag och varje timme lördag före spelstopp.
-    - cron: '0 5,11,17 * * 2-4'
-    - cron: '0 5,8,11,14,17,20 * * 5'
-    - cron: '0 5-13 * * 6'
+    # GitHub cron använder UTC. Två kandidater täcker svensk sommar-/vintertid;
+    # jobbets första steg släpper bara igenom exakt 04:00 Europe/Stockholm.
+    - cron: '0 2,3 * * 5'
 
 permissions:
   contents: read
@@ -22,7 +15,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-check:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.time.outputs.should-run }}
+    steps:
+      - id: time
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" != "schedule" ] || [ "$(TZ=Europe/Stockholm date +'%u %H:%M')" = "5 04:00" ]; then
+            echo "should-run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should-run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   update:
+    needs: schedule-check
+    if: needs.schedule-check.outputs.should-run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -42,3 +52,6 @@ jobs:
         run: pnpm exec firebase deploy --only firestore:rules --project stryktipset-46f61
       - name: Scrape, validate and publish
         run: node functions/lib/run-update.js
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_SCRAPER_MODEL: ${{ vars.OPENAI_SCRAPER_MODEL }}
