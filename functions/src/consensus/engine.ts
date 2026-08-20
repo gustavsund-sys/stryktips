@@ -39,3 +39,23 @@ export function buildConsensus(picks: ExpertPick[], config = DEFAULT_SYSTEM_CONF
 }
 
 export const calculateRows = (matches: ConsensusMatch[]) => matches.reduce((rows, match) => rows * match.systemTip.length, 1);
+
+export function limitSystemRows(matches: ConsensusMatch[], maxRows = 300): ConsensusMatch[] {
+  if (!Number.isInteger(maxRows) || maxRows < 1) throw new Error('Maximalt radantal måste vara ett positivt heltal');
+  const limited = matches.map((match) => ({ ...match }));
+  while (calculateRows(limited) > maxRows) {
+    const candidates = limited.flatMap((match, index) => {
+      if (match.systemTip.length < 2) return [];
+      const signs = [...match.systemTip] as BaseSign[];
+      const removable = signs.filter((sign) => sign !== match.consensusSign);
+      const pool = removable.length ? removable : signs;
+      const remove = pool.sort((a, b) => match.support[a] - match.support[b] || order(b) - order(a))[0];
+      return [{ index, remove, support: match.support[remove] / match.ballots.length, nextRows: calculateRows(limited) / signs.length * (signs.length - 1) }];
+    });
+    if (!candidates.length) break;
+    const withinBudget = candidates.filter((candidate) => candidate.nextRows <= maxRows);
+    const candidate = (withinBudget.length ? withinBudget : candidates).sort((a, b) => a.support - b.support || b.nextRows - a.nextRows || a.index - b.index)[0];
+    limited[candidate.index].systemTip = asTip(([...limited[candidate.index].systemTip] as BaseSign[]).filter((sign) => sign !== candidate.remove));
+  }
+  return limited;
+}

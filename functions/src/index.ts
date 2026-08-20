@@ -3,7 +3,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { calculateRows, buildConsensus } from './consensus/engine';
+import { calculateRows, buildConsensus, limitSystemRows } from './consensus/engine';
 import { findCurrentArticle, fetchHtml } from './scrapers/fetch';
 import { extractPicksWithAI } from './scrapers/ai-fallback';
 import { BETTINGSTUGAN_INDEX, parseBettingstugan } from './scrapers/bettingstugan';
@@ -71,7 +71,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
     await db.collection('scrapeRuns').add({ at: now, statuses: omitUndefined(statuses), published: false, reason: 'Alla källor måste valideras före publicering', createdAt: FieldValue.serverTimestamp() });
     logger.warn('Scrape validerades inte; befintlig kupong behålls', statuses); return { published: false, roundDate: previous?.roundDate ?? stockholmDate() };
   }
-  let matches = buildConsensus(picks); let officialCoupon: OfficialCoupon | undefined;
+  let matches = limitSystemRows(buildConsensus(picks), 300); let officialCoupon: OfficialCoupon | undefined;
   if (officialResult.status === 'fulfilled') {
     try {
       officialCoupon = officialResult.value;
