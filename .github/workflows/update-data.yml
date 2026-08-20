@@ -3,9 +3,10 @@ name: Update Stryktipset data
 on:
   workflow_dispatch:
   schedule:
-    # GitHub cron använder UTC. Två kandidater täcker svensk sommar-/vintertid;
-    # jobbets första steg släpper bara igenom exakt 04:00 Europe/Stockholm.
+    # GitHub cron använder UTC. Två kandidater per lokal tid täcker svensk
+    # sommar-/vintertid; tidsvakten släpper bara igenom de exakta tiderna.
     - cron: '0 2,3 * * 5'
+    - cron: '0 10,11 * * 6'
 
 permissions:
   contents: read
@@ -24,7 +25,8 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "$EVENT_NAME" != "schedule" ] || [ "$(TZ=Europe/Stockholm date +'%u %H:%M')" = "5 04:00" ]; then
+          LOCAL_TIME="$(TZ=Europe/Stockholm date +'%u %H:%M')"
+          if [ "$EVENT_NAME" != "schedule" ] || [ "$LOCAL_TIME" = "5 04:00" ] || [ "$LOCAL_TIME" = "6 12:00" ]; then
             echo "should-run=true" >> "$GITHUB_OUTPUT"
           else
             echo "should-run=false" >> "$GITHUB_OUTPUT"
