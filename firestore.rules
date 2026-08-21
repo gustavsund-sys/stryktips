@@ -18,6 +18,7 @@ service cloud.firestore {
     match /scrapeRuns/{document} { allow read, write: if false; }
     match /systemStatus/{document} { allow read: if true; allow write: if false; }
     match /expertStats/{document} { allow read: if true; allow write: if false; }
+    match /liveStatus/{document} { allow read: if true; allow write: if false; }
     match /claimRounds/{document} {
       allow read: if true;
       allow create, delete: if false;

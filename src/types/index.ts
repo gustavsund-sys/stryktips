@@ -21,3 +21,10 @@ export interface ClaimRound {
   base?: 'expert' | 'chaparral'; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
   lockAt?: { toDate: () => Date }; result?: SystemResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
 }
+export interface LiveMatch {
+  matchNumber: number; homeTeam: string; awayTeam: string; matchStart: string; status: string; statusId: number;
+  sportEventStatus: string; cancelled: boolean; homeScore?: number; awayScore?: number; currentSign?: Sign;
+}
+export interface LiveStatus {
+  roundDate: string; drawNumber: number; updatedAt: string; started: boolean; active: boolean; complete: boolean; matches: LiveMatch[];
+}

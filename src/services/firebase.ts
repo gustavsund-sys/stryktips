@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, connectFirestoreEmulator, deleteField, doc, getDoc, getDocs, getFirestore, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
-import type { AliasCandidate, AliasReview, ChallengerTip, ClaimRound, ExpertStats, LatestRunStatus, Participant, Round, Tip } from '../types';
+import { collection, connectFirestoreEmulator, deleteField, doc, getDoc, getDocs, getFirestore, onSnapshot, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
+import type { AliasCandidate, AliasReview, ChallengerTip, ClaimRound, ExpertStats, LatestRunStatus, LiveStatus, Participant, Round, Tip } from '../types';
 import { demoRound } from '../data/demo';
 
 const config = { apiKey: import.meta.env.VITE_FIREBASE_API_KEY, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, appId: import.meta.env.VITE_FIREBASE_APP_ID };
@@ -22,6 +22,11 @@ export async function getLatestRunStatus(): Promise<LatestRunStatus | undefined>
     const snapshot = await getDoc(doc(db, 'systemStatus', 'latest'));
     return snapshot.exists() ? snapshot.data() as LatestRunStatus : undefined;
   } catch { return undefined; }
+}
+
+export function subscribeLiveStatus(onChange: (status?: LiveStatus) => void): () => void {
+  if (!db) return () => undefined;
+  return onSnapshot(doc(db, 'liveStatus', 'current'), (snapshot) => onChange(snapshot.exists() ? snapshot.data() as LiveStatus : undefined), () => onChange(undefined));
 }
 
 export async function getExpertStats(): Promise<ExpertStats | undefined> {
