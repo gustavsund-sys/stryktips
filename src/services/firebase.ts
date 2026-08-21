@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, connectFirestoreEmulator, deleteField, doc, getDoc, getDocs, getFirestore, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
 import type { AliasCandidate, AliasReview, ClaimRound, ExpertStats, LatestRunStatus, Participant, Round, Tip } from '../types';
 import { demoRound } from '../data/demo';
 
@@ -60,7 +60,7 @@ export async function getClaimRounds(): Promise<ClaimRound[]> {
 
 async function loginGroup(password: string): Promise<void> {
   if (!auth) throw new Error('Firebase är inte konfigurerat');
-  if (!auth.currentUser) await signInWithEmailAndPassword(auth, 'tstipset@gmail.com', password);
+  await signInWithEmailAndPassword(auth, 'tstipset@gmail.com', password);
 }
 
 export async function claimRound(roundDate: string, participant: Participant, password: string): Promise<void> {
@@ -68,9 +68,17 @@ export async function claimRound(roundDate: string, participant: Participant, pa
   await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'unclaimed') throw new Error('Omgången har redan claimats'); transaction.update(ref, { status: 'claimed', participant, claimedAt: serverTimestamp() }); });
 }
 
-export async function lockClaimRound(roundDate: string, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
+export async function lockClaimRound(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Raden måste innehålla 13 giltiga matcher');
   const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 300) throw new Error('Systemet får inte överstiga 300 rader');
-  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången kan inte låsas'); transaction.update(ref, { status: 'locked', base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp() }); });
+  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången kan inte låsas'); transaction.update(ref, { status: 'locked', participant, base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp() }); });
+}
+
+export async function unlockClaimRound(roundDate: string, participant: Participant, password: string): Promise<void> {
+  if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password); const ref = doc(db, 'claimRounds', roundDate);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'locked') throw new Error('Omgången kan inte låsas upp');
+    transaction.update(ref, { status: 'claimed', participant, base: deleteField(), originalTips: deleteField(), finalTips: deleteField(), rows: deleteField(), cost: deleteField(), lockedAt: deleteField(), unlockedAt: serverTimestamp() });
+  });
 }

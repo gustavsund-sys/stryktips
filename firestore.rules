@@ -20,15 +20,22 @@ service cloud.firestore {
           && request.resource.data.claimedAt == request.time)
         ||
         (resource.data.status == 'claimed'
-          && request.resource.data.participant == resource.data.participant
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
           && request.resource.data.status == 'locked'
+          && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
           && request.resource.data.base in ['expert', 'chaparral']
           && request.resource.data.originalTips is list && request.resource.data.originalTips.size() == 13
           && request.resource.data.finalTips is list && request.resource.data.finalTips.size() == 13
           && request.resource.data.rows is int && request.resource.data.rows > 0 && request.resource.data.rows <= 300
           && request.resource.data.cost == request.resource.data.rows
           && request.resource.data.lockedAt == request.time)
+        ||
+        (resource.data.status == 'locked'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt', 'unlockedAt'])
+          && request.resource.data.status == 'claimed'
+          && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
+          && !request.resource.data.keys().hasAny(['base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
+          && request.resource.data.unlockedAt == request.time)
       );
     }
     match /aliasReviews/{document} {
