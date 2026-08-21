@@ -89,8 +89,8 @@ export async function saveChallengerTip(roundDate: string, participant: Particip
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Utmanarraden måste innehålla 13 giltiga matcher');
   const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 12) throw new Error('Utmanarsystemet får inte överstiga 12 rader');
   const ref = doc(db, 'claimRounds', roundDate); const privateRef = doc(db, 'challengerTips', `${roundDate}_${participant}`); await runTransaction(db, async (transaction) => {
-    const [snapshot, privateSnapshot] = await Promise.all([transaction.get(ref), transaction.get(privateRef)]); if (!snapshot.exists() || snapshot.data().status !== 'locked') throw new Error('Den skarpa ronden måste vara låst först');
-    const data = snapshot.data() as ClaimRound; if (data.participant === participant) throw new Error('Den skarpa tipsaren kan inte utmana sin egen rond'); if (privateSnapshot.exists() || data.challengers?.[participant]) throw new Error('Utmanartipset är redan inskickat och förseglat');
+    const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'locked') throw new Error('Den skarpa ronden måste vara låst först');
+    const data = snapshot.data() as ClaimRound; if (data.participant === participant) throw new Error('Den skarpa tipsaren kan inte utmana sin egen rond'); if (data.challengers?.[participant]) throw new Error('Utmanartipset är redan inskickat och förseglat');
     const challengers = data.challengers ?? {}; if (!challengers[participant] && Object.keys(challengers).length >= 5) throw new Error('Alla utmanarplatser är upptagna');
     transaction.set(privateRef, { roundDate, participant, base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp() });
     transaction.update(ref, { [`challengers.${participant}`]: { participant, base, rows, cost: rows, lockedAt: serverTimestamp() } });
