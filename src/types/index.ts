@@ -11,8 +11,13 @@ export interface AliasReview { status: 'pending' | 'approved' | 'none'; updatedA
 export interface ExpertStat { expertId: string; expert: string; source: Ballot['source']; rounds: number; matches: number; coveredHits: number; precisionPoints: number; singlePicks: number; singleHits: number; }
 export interface ExpertStats { updatedAt: string; settledRounds: number; lastRoundDate: string; experts: ExpertStat[]; }
 export type Participant = 'Jocke' | 'Tony' | 'Gustav' | 'Anders' | 'Matta-Råsnygg' | 'Christer';
+export interface SystemResult { maxCorrect: number; winningRows: Record<string, number>; payout: number; }
+export interface ChallengerTip {
+  participant: Participant; base: 'expert' | 'chaparral'; originalTips: Tip[]; finalTips: Tip[];
+  rows: number; cost: number; lockedAt?: { toDate: () => Date }; result?: SystemResult;
+}
 export interface ClaimRound {
   roundDate: string; drawNumber: number; status: 'unclaimed' | 'claimed' | 'locked' | 'settled'; participant?: Participant;
   base?: 'expert' | 'chaparral'; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
-  lockAt?: { toDate: () => Date }; result?: { maxCorrect: number; winningRows: Record<string, number>; payout: number };
+  lockAt?: { toDate: () => Date }; result?: SystemResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
 }

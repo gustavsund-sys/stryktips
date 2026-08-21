@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { collection, connectFirestoreEmulator, deleteField, doc, getDoc, getDocs, getFirestore, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
-import type { AliasCandidate, AliasReview, ClaimRound, ExpertStats, LatestRunStatus, Participant, Round, Tip } from '../types';
+import type { AliasCandidate, AliasReview, ChallengerTip, ClaimRound, ExpertStats, LatestRunStatus, Participant, Round, Tip } from '../types';
 import { demoRound } from '../data/demo';
 
 const config = { apiKey: import.meta.env.VITE_FIREBASE_API_KEY, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, appId: import.meta.env.VITE_FIREBASE_APP_ID };
@@ -72,13 +72,27 @@ export async function lockClaimRound(roundDate: string, participant: Participant
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Raden måste innehålla 13 giltiga matcher');
   const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 300) throw new Error('Systemet får inte överstiga 300 rader');
-  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången kan inte låsas'); transaction.update(ref, { status: 'locked', participant, base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp() }); });
+  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången kan inte låsas'); const challengers = { ...((snapshot.data() as ClaimRound).challengers ?? {}) }; delete challengers[participant]; transaction.update(ref, { status: 'locked', participant, challengers, base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp() }); });
 }
 
 export async function unlockClaimRound(roundDate: string, participant: Participant, password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password); const ref = doc(db, 'claimRounds', roundDate);
   await runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'locked') throw new Error('Omgången kan inte låsas upp');
-    transaction.update(ref, { status: 'claimed', participant, base: deleteField(), originalTips: deleteField(), finalTips: deleteField(), rows: deleteField(), cost: deleteField(), lockedAt: deleteField(), unlockedAt: serverTimestamp() });
+    const challengers = { ...((snapshot.data() as ClaimRound).challengers ?? {}) }; delete challengers[participant];
+    transaction.update(ref, { status: 'claimed', participant, challengers, base: deleteField(), originalTips: deleteField(), finalTips: deleteField(), rows: deleteField(), cost: deleteField(), lockedAt: deleteField(), unlockedAt: serverTimestamp() });
+  });
+}
+
+export async function saveChallengerTip(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
+  if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
+  if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Utmanarraden måste innehålla 13 giltiga matcher');
+  const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 300) throw new Error('Utmanarsystemet får inte överstiga 300 rader');
+  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'locked') throw new Error('Den skarpa ronden måste vara låst först');
+    const data = snapshot.data() as ClaimRound; if (data.participant === participant) throw new Error('Den skarpa tipsaren kan inte utmana sin egen rond');
+    const challengers = data.challengers ?? {}; if (!challengers[participant] && Object.keys(challengers).length >= 5) throw new Error('Alla utmanarplatser är upptagna');
+    const challenger: ChallengerTip = { participant, base, originalTips, finalTips, rows, cost: rows };
+    transaction.update(ref, { [`challengers.${participant}`]: { ...challenger, lockedAt: serverTimestamp() } });
   });
 }

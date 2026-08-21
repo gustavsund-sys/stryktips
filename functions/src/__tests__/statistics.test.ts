@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addRoundToStats, parseOfficialResult, scoreSystem } from '../results/statistics';
+import { addRoundToStats, parseOfficialResult, scoreCompetition, scoreSystem } from '../results/statistics';
 import type { ConsensusMatch } from '../types';
 
 describe('expertstatistik', () => {
@@ -22,5 +22,12 @@ describe('expertstatistik', () => {
   it('räknar rätt och utdelning för samtliga systemrader', () => {
     const result = { roundDate: '2026-08-15', drawNumber: 42, outcomes: ['1','1','1','1','1','1','1','1','1','1','1','1','1'] as const, payouts: { 12: 100, 13: 1000 } };
     expect(scoreSystem(['1X','1','1','1','1','1','1','1','1','1','1','1','1'], result)).toEqual({ maxCorrect: 13, winningRows: { '10': 0, '11': 0, '12': 1, '13': 1 }, payout: 1100 });
+  });
+
+  it('poängsätter skarp rond och alla utmanarronder separat', () => {
+    const result = { roundDate: '2026-08-15', drawNumber: 42, outcomes: Array(13).fill('1') as '1'[], payouts: { 13: 1000 } };
+    const competition = scoreCompetition(Array(13).fill('1'), { Tony: { participant: 'Tony', finalTips: ['2', ...Array(12).fill('1')] } }, result);
+    expect(competition.sharpResult).toMatchObject({ maxCorrect: 13, payout: 1000 });
+    expect(competition.challengers.Tony.result).toMatchObject({ maxCorrect: 12, payout: 0 });
   });
 });

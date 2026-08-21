@@ -20,7 +20,7 @@ service cloud.firestore {
           && request.resource.data.claimedAt == request.time)
         ||
         (resource.data.status == 'claimed'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'challengers', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
           && request.resource.data.status == 'locked'
           && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
           && request.resource.data.base in ['expert', 'chaparral']
@@ -31,11 +31,17 @@ service cloud.firestore {
           && request.resource.data.lockedAt == request.time)
         ||
         (resource.data.status == 'locked'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt', 'unlockedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'challengers', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt', 'unlockedAt'])
           && request.resource.data.status == 'claimed'
           && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
           && !request.resource.data.keys().hasAny(['base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
           && request.resource.data.unlockedAt == request.time)
+        ||
+        (resource.data.status == 'locked'
+          && request.resource.data.status == 'locked'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['challengers'])
+          && request.resource.data.challengers is map
+          && request.resource.data.challengers.size() <= 5)
       );
     }
     match /aliasReviews/{document} {

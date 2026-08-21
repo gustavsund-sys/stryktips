@@ -14,7 +14,7 @@ import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understrecka
 import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
 import { omitUndefined } from './persistence';
-import { addRoundToStats, parseOfficialResult, scoreSystem, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
+import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
 import { SIGNS, type ConsensusMatch, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -46,7 +46,10 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
       transaction.set(roundRef, { officialResult: { ...result, settledAt: now } }, { merge: true });
       transaction.set(statsRef, stats);
       const claim = claimSnap.data();
-      if (claimSnap.exists && claim?.status === 'locked' && Array.isArray(claim.finalTips)) transaction.set(claimRef, { status: 'settled', result: scoreSystem(claim.finalTips, result), settledAt: FieldValue.serverTimestamp() }, { merge: true });
+      if (claimSnap.exists && claim?.status === 'locked' && Array.isArray(claim.finalTips)) {
+        const competition = scoreCompetition(claim.finalTips, claim.challengers ?? {}, result);
+        transaction.set(claimRef, { status: 'settled', result: competition.sharpResult, challengers: competition.challengers, settledAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
       return true;
     });
     return { settled, roundDate: result.roundDate };

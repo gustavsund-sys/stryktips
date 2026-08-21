@@ -35,6 +35,13 @@ export function scoreSystem(tips: string[], result: OfficialResult): { maxCorrec
   return { maxCorrect, winningRows, payout: Number(payout.toFixed(2)) };
 }
 
+export function scoreCompetition(sharpTips: string[], challengers: Record<string, { finalTips?: string[]; [key: string]: unknown }>, result: OfficialResult) {
+  return {
+    sharpResult: scoreSystem(sharpTips, result),
+    challengers: Object.fromEntries(Object.entries(challengers).map(([participant, challenger]) => [participant, Array.isArray(challenger.finalTips) ? { ...challenger, result: scoreSystem(challenger.finalTips, result) } : challenger])),
+  };
+}
+
 export function addRoundToStats(previous: ExpertStatsDocument | undefined, matches: ConsensusMatch[], result: OfficialResult, now: string): ExpertStatsDocument {
   const stats = new Map((previous?.experts ?? []).map((expert) => [expert.expertId, { ...expert }]));
   for (const match of matches) {
