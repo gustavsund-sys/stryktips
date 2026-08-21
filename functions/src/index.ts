@@ -74,6 +74,18 @@ export async function clearCurrentChallengers(): Promise<{ cleared: number; roun
   return { cleared: Object.keys(challengers).length, roundDate: coupon.roundDate };
 }
 
+export async function migrateCurrentChallengers(): Promise<{ migrated: number; roundDate: string }> {
+  const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL)); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
+  if (!snapshot.exists) throw new Error('CLAIM_ROUND_NOT_FOUND');
+  const challengers = snapshot.data()?.challengers ?? {}; const summaries: Record<string, unknown> = {}; const batch = db.batch(); let migrated = 0;
+  for (const [participant, value] of Object.entries(challengers)) {
+    const challenger = value as Record<string, unknown>; const { base, rows, cost, lockedAt } = challenger; summaries[participant] = { participant, base, rows, cost, lockedAt };
+    if (Array.isArray(challenger.finalTips)) { batch.set(db.doc(`challengerTips/${coupon.roundDate}_${participant}`), { roundDate: coupon.roundDate, ...challenger }, { merge: false }); migrated += 1; }
+  }
+  batch.update(ref, { challengers: summaries, challengersMigratedAt: FieldValue.serverTimestamp() }); await batch.commit();
+  return { migrated, roundDate: coupon.roundDate };
+}
+
 function stockholmDate(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }

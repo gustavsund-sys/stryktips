@@ -8,7 +8,7 @@ on:
         required: true
         default: full
         type: choice
-        options: [full, claim, results, clear-challengers]
+        options: [full, claim, results, clear-challengers, migrate-challengers]
   schedule:
     # GitHub cron använder UTC. Två kandidater per lokal tid täcker svensk
     # sommar-/vintertid; tidsvakten släpper bara igenom de exakta tiderna.
@@ -88,3 +88,6 @@ jobs:
       - name: Clear current challenger tips
         if: needs.schedule-check.outputs.mode == 'clear-challengers'
         run: node functions/lib/run-clear-challengers.js
+      - name: Migrate current challenger tips to private storage
+        if: needs.schedule-check.outputs.mode == 'migrate-challengers'
+        run: node functions/lib/run-migrate-challengers.js
