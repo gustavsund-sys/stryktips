@@ -34,9 +34,9 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
     const response = await fetch(SVENSKA_SPEL_RESULTS_URL, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) throw new Error(`RESULT_HTTP_${response.status}`);
     const result = parseOfficialResult(await response.json());
-    const roundRef = db.doc(`rounds/${result.roundDate}`); const statsRef = db.doc('expertStats/current'); const claimRef = db.doc(`claimRounds/${result.roundDate}`);
+    const roundRef = db.doc(`rounds/${result.roundDate}`); const statsRef = db.doc('expertStats/current'); const claimRef = db.doc(`claimRounds/${result.roundDate}`); const challengerQuery = db.collection('challengerTips').where('roundDate', '==', result.roundDate);
     const settled = await db.runTransaction(async (transaction) => {
-      const [roundSnap, statsSnap, claimSnap] = await Promise.all([transaction.get(roundRef), transaction.get(statsRef), transaction.get(claimRef)]);
+      const [roundSnap, statsSnap, claimSnap, challengerSnaps] = await Promise.all([transaction.get(roundRef), transaction.get(statsRef), transaction.get(claimRef), transaction.get(challengerQuery)]);
       if (!roundSnap.exists) return false;
       const roundData = roundSnap.data();
       if (roundData?.officialResult?.drawNumber === result.drawNumber) return false;
@@ -47,7 +47,7 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
       transaction.set(statsRef, stats);
       const claim = claimSnap.data();
       if (claimSnap.exists && claim?.status === 'locked' && Array.isArray(claim.finalTips)) {
-        const competition = scoreCompetition(claim.finalTips, claim.challengers ?? {}, result);
+        const privateChallengers = Object.fromEntries(challengerSnaps.docs.map((snapshot) => [snapshot.data().participant, snapshot.data()])); const competition = scoreCompetition(claim.finalTips, privateChallengers, result);
         transaction.set(claimRef, { status: 'settled', result: competition.sharpResult, challengers: competition.challengers, settledAt: FieldValue.serverTimestamp() }, { merge: true });
       }
       return true;
@@ -70,7 +70,7 @@ export async function prepareClaimRound(): Promise<{ created: boolean; roundDate
 export async function clearCurrentChallengers(): Promise<{ cleared: number; roundDate: string }> {
   const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL)); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
   if (!snapshot.exists) throw new Error('CLAIM_ROUND_NOT_FOUND');
-  const challengers = snapshot.data()?.challengers ?? {}; await ref.update({ challengers: {}, challengersClearedAt: FieldValue.serverTimestamp() });
+  const challengers = snapshot.data()?.challengers ?? {}; const privateTips = await db.collection('challengerTips').where('roundDate', '==', coupon.roundDate).get(); const batch = db.batch(); privateTips.docs.forEach((document) => batch.delete(document.ref)); batch.update(ref, { challengers: {}, challengersClearedAt: FieldValue.serverTimestamp() }); await batch.commit();
   return { cleared: Object.keys(challengers).length, roundDate: coupon.roundDate };
 }
 

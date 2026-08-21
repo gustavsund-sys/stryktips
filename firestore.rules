@@ -6,8 +6,8 @@ service cloud.firestore {
   function validChallenger(challengers, name) {
     return !(name in challengers) || (
       challengers[name].participant == name
+      && challengers[name].keys().hasOnly(['participant', 'base', 'rows', 'cost', 'lockedAt'])
       && challengers[name].base in ['expert', 'chaparral', 'blank']
-      && challengers[name].finalTips is list && challengers[name].finalTips.size() == 13
       && challengers[name].rows is int && challengers[name].rows > 0 && challengers[name].rows <= 12
       && challengers[name].cost == challengers[name].rows
     );
@@ -59,6 +59,20 @@ service cloud.firestore {
           && validChallenger(request.resource.data.challengers, 'Matta-Råsnygg')
           && validChallenger(request.resource.data.challengers, 'Christer'))
       );
+    }
+    match /challengerTips/{document} {
+      allow read, update, delete: if false;
+      allow create: if isTipsAdmin()
+        && document == request.resource.data.roundDate + '_' + request.resource.data.participant
+        && request.resource.data.keys().hasOnly(['roundDate', 'participant', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt'])
+        && request.resource.data.roundDate is string
+        && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
+        && request.resource.data.base == 'blank'
+        && request.resource.data.finalTips is list && request.resource.data.finalTips.size() == 13
+        && request.resource.data.rows is int && request.resource.data.rows > 0 && request.resource.data.rows <= 12
+        && request.resource.data.cost == request.resource.data.rows
+        && request.resource.data.lockedAt == request.time
+        && request.time < get(/databases/$(database)/documents/claimRounds/$(request.resource.data.roundDate)).data.lockAt;
     }
     match /aliasReviews/{document} {
       allow read: if true;
