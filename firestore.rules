@@ -3,6 +3,15 @@ service cloud.firestore {
   function isTipsAdmin() {
     return request.auth != null && request.auth.token.email == 'tstipset@gmail.com';
   }
+  function validChallenger(challengers, name) {
+    return !(name in challengers) || (
+      challengers[name].participant == name
+      && challengers[name].base in ['expert', 'chaparral']
+      && challengers[name].finalTips is list && challengers[name].finalTips.size() == 13
+      && challengers[name].rows is int && challengers[name].rows > 0 && challengers[name].rows <= 12
+      && challengers[name].cost == challengers[name].rows
+    );
+  }
   match /databases/{database}/documents {
     match /stryktipset/{document} { allow read: if true; allow write: if false; }
     match /rounds/{document} { allow read: if true; allow write: if false; }
@@ -41,7 +50,14 @@ service cloud.firestore {
           && request.resource.data.status == 'locked'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['challengers'])
           && request.resource.data.challengers is map
-          && request.resource.data.challengers.size() <= 5)
+          && request.resource.data.challengers.size() <= 5
+          && request.resource.data.challengers.keys().hasOnly(['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer'])
+          && validChallenger(request.resource.data.challengers, 'Jocke')
+          && validChallenger(request.resource.data.challengers, 'Tony')
+          && validChallenger(request.resource.data.challengers, 'Gustav')
+          && validChallenger(request.resource.data.challengers, 'Anders')
+          && validChallenger(request.resource.data.challengers, 'Matta-Råsnygg')
+          && validChallenger(request.resource.data.challengers, 'Christer'))
       );
     }
     match /aliasReviews/{document} {

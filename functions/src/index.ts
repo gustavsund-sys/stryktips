@@ -67,6 +67,13 @@ export async function prepareClaimRound(): Promise<{ created: boolean; roundDate
   return { created, roundDate: coupon.roundDate };
 }
 
+export async function clearCurrentChallengers(): Promise<{ cleared: number; roundDate: string }> {
+  const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL)); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
+  if (!snapshot.exists) throw new Error('CLAIM_ROUND_NOT_FOUND');
+  const challengers = snapshot.data()?.challengers ?? {}; await ref.update({ challengers: {}, challengersClearedAt: FieldValue.serverTimestamp() });
+  return { cleared: Object.keys(challengers).length, roundDate: coupon.roundDate };
+}
+
 function stockholmDate(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }

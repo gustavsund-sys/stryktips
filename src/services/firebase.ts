@@ -87,7 +87,7 @@ export async function unlockClaimRound(roundDate: string, participant: Participa
 export async function saveChallengerTip(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Utmanarraden måste innehålla 13 giltiga matcher');
-  const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 300) throw new Error('Utmanarsystemet får inte överstiga 300 rader');
+  const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 12) throw new Error('Utmanarsystemet får inte överstiga 12 rader');
   const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'locked') throw new Error('Den skarpa ronden måste vara låst först');
     const data = snapshot.data() as ClaimRound; if (data.participant === participant) throw new Error('Den skarpa tipsaren kan inte utmana sin egen rond');

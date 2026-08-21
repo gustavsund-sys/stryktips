@@ -8,7 +8,7 @@ on:
         required: true
         default: full
         type: choice
-        options: [full, claim, results]
+        options: [full, claim, results, clear-challengers]
   schedule:
     # GitHub cron använder UTC. Två kandidater per lokal tid täcker svensk
     # sommar-/vintertid; tidsvakten släpper bara igenom de exakta tiderna.
@@ -85,3 +85,6 @@ jobs:
       - name: Prepare claimable round
         if: needs.schedule-check.outputs.mode == 'claim'
         run: node functions/lib/run-claims.js
+      - name: Clear current challenger tips
+        if: needs.schedule-check.outputs.mode == 'clear-challengers'
+        run: node functions/lib/run-clear-challengers.js
