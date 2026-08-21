@@ -23,15 +23,10 @@ jobs:
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        id: auth
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          token_format: access_token
       - name: Test live parser
         run: node --test scripts/live-status.test.mjs
       - name: Fetch and publish live status
         run: node scripts/update-live-status.mjs
         env:
           FIREBASE_PROJECT_ID: stryktipset-46f61
-          GOOGLE_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

@@ -1,8 +1,21 @@
 import { LIVE_API_BASE, parseLiveDraw, toFirestoreValue } from './live-status.mjs';
+import { createSign } from 'node:crypto';
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
-const accessToken = process.env.GOOGLE_ACCESS_TOKEN;
-if (!projectId || !accessToken) throw new Error('FIREBASE_PROJECT_ID eller GOOGLE_ACCESS_TOKEN saknas');
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+if (!projectId || !serviceAccountJson) throw new Error('FIREBASE_PROJECT_ID eller FIREBASE_SERVICE_ACCOUNT_JSON saknas');
+
+async function createAccessToken(json) {
+  const account = JSON.parse(json); const now = Math.floor(Date.now() / 1000);
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({ iss: account.client_email, scope: 'https://www.googleapis.com/auth/datastore', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 })}`;
+  const signer = createSign('RSA-SHA256'); signer.update(unsigned); signer.end();
+  const assertion = `${unsigned}.${signer.sign(account.private_key, 'base64url')}`;
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
+  if (!tokenResponse.ok) throw new Error(`GOOGLE_TOKEN_${tokenResponse.status}`);
+  return (await tokenResponse.json()).access_token;
+}
+const accessToken = await createAccessToken(serviceAccountJson);
 
 const page = await fetch('https://spela.svenskaspel.se/stryktipset/systemspel/speltips', { headers: { 'user-agent': 'TS-Gubbarnas-Live/1.0' } });
 if (!page.ok) throw new Error(`SVENSKA_SPEL_PAGE_HTTP_${page.status}`);
