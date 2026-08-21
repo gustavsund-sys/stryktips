@@ -6,7 +6,7 @@ service cloud.firestore {
   function validChallenger(challengers, name) {
     return !(name in challengers) || (
       challengers[name].participant == name
-      && challengers[name].base in ['expert', 'chaparral']
+      && challengers[name].base in ['expert', 'chaparral', 'blank']
       && challengers[name].finalTips is list && challengers[name].finalTips.size() == 13
       && challengers[name].rows is int && challengers[name].rows > 0 && challengers[name].rows <= 12
       && challengers[name].cost == challengers[name].rows

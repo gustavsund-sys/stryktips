@@ -84,7 +84,7 @@ export async function unlockClaimRound(roundDate: string, participant: Participa
   });
 }
 
-export async function saveChallengerTip(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
+export async function saveChallengerTip(roundDate: string, participant: Participant, base: 'expert' | 'chaparral' | 'blank', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Utmanarraden måste innehålla 13 giltiga matcher');
   const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 12) throw new Error('Utmanarsystemet får inte överstiga 12 rader');

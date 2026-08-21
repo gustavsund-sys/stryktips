@@ -13,7 +13,7 @@ export interface ExpertStats { updatedAt: string; settledRounds: number; lastRou
 export type Participant = 'Jocke' | 'Tony' | 'Gustav' | 'Anders' | 'Matta-Råsnygg' | 'Christer';
 export interface SystemResult { maxCorrect: number; winningRows: Record<string, number>; payout: number; }
 export interface ChallengerTip {
-  participant: Participant; base: 'expert' | 'chaparral'; originalTips: Tip[]; finalTips: Tip[];
+  participant: Participant; base: 'expert' | 'chaparral' | 'blank'; originalTips: Tip[]; finalTips: Tip[];
   rows: number; cost: number; lockedAt?: { toDate: () => Date }; result?: SystemResult;
 }
 export interface ClaimRound {
