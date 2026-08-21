@@ -16,19 +16,19 @@ async function createAccessToken(json) {
   return (await tokenResponse.json()).access_token;
 }
 const accessToken = await createAccessToken(serviceAccountJson);
+const headers = { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' };
+const claimsUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/claimRounds?pageSize=1&orderBy=roundDate%20desc`;
+const claimResponse = await fetch(claimsUrl, { headers });
+if (!claimResponse.ok) throw new Error(`FIRESTORE_CLAIM_READ_${claimResponse.status}`);
+const claim = (await claimResponse.json()).documents?.[0];
+const drawNumber = claim?.fields?.drawNumber?.integerValue;
+if (!drawNumber) throw new Error('CURRENT_DRAW_NOT_FOUND');
 
-const page = await fetch('https://spela.svenskaspel.se/stryktipset/systemspel/speltips', { headers: { 'user-agent': 'TS-Gubbarnas-Live/1.0' } });
-if (!page.ok) throw new Error(`SVENSKA_SPEL_PAGE_HTTP_${page.status}`);
-const html = await page.text();
-const productDraw = html.match(/"productId":1,"drawNumber":(\d+)/);
-if (!productDraw) throw new Error('CURRENT_DRAW_NOT_FOUND');
-
-const response = await fetch(`${LIVE_API_BASE}/${productDraw[1]}`, { headers: { accept: 'application/json' } });
+const response = await fetch(`${LIVE_API_BASE}/${drawNumber}`, { headers: { accept: 'application/json' } });
 if (!response.ok) throw new Error(`LIVE_API_HTTP_${response.status}`);
 const live = parseLiveDraw(await response.json());
 
 const documentUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/liveStatus/current`;
-const headers = { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' };
 const current = await fetch(documentUrl, { headers });
 if (current.ok) {
   const previous = await current.json();
