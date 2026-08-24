@@ -29,17 +29,16 @@ const scrapers: Scraper[] = [
   { id: 'tipsmedoss', indexUrl: TIPSMEDOSS_INDEX, parse: parseTipsmedoss },
 ];
 
-export async function updateExpertStats(): Promise<{ settled: boolean; roundDate?: string }> {
-  try {
+export async function updateExpertStats(): Promise<{ settled: boolean; roundDate: string; status: 'settled' | 'already-settled' }> {
     const response = await fetch(SVENSKA_SPEL_RESULTS_URL, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) throw new Error(`RESULT_HTTP_${response.status}`);
     const result = parseOfficialResult(await response.json());
     const roundRef = db.doc(`rounds/${result.roundDate}`); const statsRef = db.doc('expertStats/current'); const claimRef = db.doc(`claimRounds/${result.roundDate}`); const challengerQuery = db.collection('challengerTips').where('roundDate', '==', result.roundDate);
-    const settled = await db.runTransaction(async (transaction) => {
+    const status = await db.runTransaction(async (transaction): Promise<'settled' | 'already-settled' | 'missing-round'> => {
       const [roundSnap, statsSnap, claimSnap, challengerSnaps] = await Promise.all([transaction.get(roundRef), transaction.get(statsRef), transaction.get(claimRef), transaction.get(challengerQuery)]);
-      if (!roundSnap.exists) return false;
+      if (!roundSnap.exists) return 'missing-round';
       const roundData = roundSnap.data();
-      if (roundData?.officialResult?.drawNumber === result.drawNumber) return false;
+      if (roundData?.officialResult?.drawNumber === result.drawNumber) return 'already-settled';
       const round = roundData as RoundDocument;
       const now = new Date().toISOString();
       const stats = addRoundToStats(statsSnap.exists ? statsSnap.data() as ExpertStatsDocument : undefined, round.matches, result, now);
@@ -50,10 +49,10 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
         const privateChallengers = Object.fromEntries(challengerSnaps.docs.map((snapshot) => [snapshot.data().participant, snapshot.data()])); const competition = scoreCompetition(claim.finalTips, privateChallengers, result);
         transaction.set(claimRef, { status: 'settled', result: competition.sharpResult, challengers: competition.challengers, settledAt: FieldValue.serverTimestamp() }, { merge: true });
       }
-      return true;
+      return 'settled';
     });
-    return { settled, roundDate: result.roundDate };
-  } catch (error) { logger.warn('Resultatstatistik kunde inte uppdateras; kupongflödet fortsätter', error); return { settled: false }; }
+    if (status === 'missing-round') throw new Error(`RESULT_ROUND_MISSING_${result.roundDate}`);
+    return { settled: status === 'settled', roundDate: result.roundDate, status };
 }
 
 export async function prepareClaimRound(): Promise<{ created: boolean; roundDate: string }> {

@@ -11,10 +11,12 @@ on:
         options: [full, claim, results, clear-challengers, migrate-challengers]
   schedule:
     # GitHub cron använder UTC. Två kandidater per lokal tid täcker svensk
-    # sommar-/vintertid; tidsvakten släpper bara igenom de exakta tiderna.
+    # sommar-/vintertid. Jobben är idempotenta, så båda kandidaterna får köra:
+    # GitHubs schemalagda jobb kan starta långt efter den angivna minuten.
     - cron: '0 2,3 * * 5'
     - cron: '0 10,11 * * 6'
-    - cron: '0 0,1 * * 1'
+    - cron: '0 23 * * 0'
+    - cron: '0 0 * * 1'
     # Försök varje timme 08–12 svensk tid. När dokumentet finns blir resten idempotent.
     - cron: '0 6,7,8,9,10,11 * * 4'
 
@@ -37,17 +39,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           MODE_INPUT: ${{ inputs.mode }}
         run: |
-          LOCAL_TIME="$(TZ=Europe/Stockholm date +'%u %H:%M')"
-          if [ "$EVENT_NAME" != "schedule" ] || [ "$LOCAL_TIME" = "5 04:00" ] || [ "$LOCAL_TIME" = "6 12:00" ] || [ "$LOCAL_TIME" = "1 01:00" ] || [[ "$LOCAL_TIME" =~ ^4\ (08|09|10|11|12):00$ ]]; then
-            echo "should-run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should-run=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "should-run=true" >> "$GITHUB_OUTPUT"
           if [ "$EVENT_NAME" != "schedule" ]; then
             echo "mode=${MODE_INPUT:-full}" >> "$GITHUB_OUTPUT"
-          elif [ "$LOCAL_TIME" = "1 01:00" ]; then
+          elif [ "${{ github.event.schedule }}" = "0 23 * * 0" ] || [ "${{ github.event.schedule }}" = "0 0 * * 1" ]; then
             echo "mode=results" >> "$GITHUB_OUTPUT"
-          elif [[ "$LOCAL_TIME" =~ ^4\ (08|09|10|11|12):00$ ]]; then
+          elif [ "${{ github.event.schedule }}" = "0 6,7,8,9,10,11 * * 4" ]; then
             echo "mode=claim" >> "$GITHUB_OUTPUT"
           else
             echo "mode=full" >> "$GITHUB_OUTPUT"

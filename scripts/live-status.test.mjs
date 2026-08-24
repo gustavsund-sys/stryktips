@@ -12,13 +12,23 @@ test('markerar kommande omgång före första avspark', () => {
 
 test('läser pågående resultat och räknar tecken', () => {
   const events = Array.from({ length: 13 }, (_, i) => event(i + 1, 'Inte startat'));
-  events[0] = event(1, 'Pågår', [{ type: 'Current', home: 2, away: 1 }]);
+  events[0] = event(1, 'Pågår', [{ type: 9, sportEventResultType: 'Current', home: '2', away: '1' }]);
   const live = parseLiveDraw(payload(events), new Date('2026-08-22T14:10:00Z'));
   assert.equal(live.active, true); assert.equal(live.matches[0].currentSign, '1'); assert.equal(live.matches[0].homeScore, 2);
 });
 
 test('markerar omgången avslutad', () => {
-  const events = Array.from({ length: 13 }, (_, i) => event(i + 1, 'Slut', [{ type: 'Fulltime', home: 1, away: 1 }]));
+  const events = Array.from({ length: 13 }, (_, i) => event(i + 1, 'Slut', [{ type: 2, sportEventResultType: 'Fulltime', home: '1', away: '1' }]));
   const live = parseLiveDraw(payload(events), new Date('2026-08-22T20:00:00Z'));
   assert.equal(live.complete, true); assert.equal(live.active, false);
+});
+
+test('föredrar aktuell ställning framför halvtidsresultat', () => {
+  const events = Array.from({ length: 13 }, (_, i) => event(i + 1, 'Inte startat'));
+  events[0] = event(1, 'Pågår', [
+    { type: 1, sportEventResultType: 'Halftime', home: '0', away: '0' },
+    { type: 9, sportEventResultType: 'Current', home: '1', away: '2' },
+  ]);
+  const live = parseLiveDraw(payload(events), new Date('2026-08-22T14:10:00Z'));
+  assert.equal(live.matches[0].currentSign, '2');
 });

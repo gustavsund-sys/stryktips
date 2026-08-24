@@ -7,9 +7,13 @@ export function parseLiveDraw(payload, now = new Date()) {
   if (!draw || !Array.isArray(draw.drawEvents) || draw.drawEvents.length !== 13) throw new Error('LIVE_API_INVALID_DRAW');
   const matches = draw.drawEvents.map((event) => {
     const match = event.match ?? {};
-    const score = [...(Array.isArray(match.result) ? match.result : [])].reverse().find((item) =>
-      ['Current', 'Fulltime'].includes(item?.type) && Number.isFinite(Number(item?.home)) && Number.isFinite(Number(item?.away))
-    );
+    const results = Array.isArray(match.result) ? match.result : [];
+    const resultType = (item) => item?.sportEventResultType ?? item?.type;
+    const hasScore = (item) => Number.isFinite(Number(item?.home)) && Number.isFinite(Number(item?.away));
+    // Svenska Spel currently exposes the textual kind in sportEventResultType
+    // (while type is a numeric id). Keep the old field as a fallback.
+    const score = results.find((item) => resultType(item) === 'Current' && hasScore(item))
+      ?? results.find((item) => resultType(item) === 'Fulltime' && hasScore(item));
     const homeScore = score ? Number(score.home) : undefined;
     const awayScore = score ? Number(score.away) : undefined;
     return {
@@ -36,4 +40,3 @@ export function toFirestoreValue(value) {
   if (typeof value === 'number') return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
   return { stringValue: String(value) };
 }
-
