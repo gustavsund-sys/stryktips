@@ -59,7 +59,11 @@ export async function logoutAliasAdmin(): Promise<void> { if (auth) await signOu
 
 export async function getClaimRounds(): Promise<ClaimRound[]> {
   if (!db) return [];
-  try { const snapshot = await getDocs(collection(db, 'claimRounds')); return snapshot.docs.map((item) => item.data() as ClaimRound).sort((a, b) => b.roundDate.localeCompare(a.roundDate)); }
+  try {
+    const snapshot = await getDocs(collection(db, 'claimRounds')); const claims = snapshot.docs.map((item) => item.data() as ClaimRound);
+    await Promise.all(claims.filter((claim) => claim.status === 'settled' && !claim.officialResult).map(async (claim) => { const round = await getDoc(doc(db, 'rounds', claim.roundDate)); if (round.exists()) claim.officialResult = round.data().officialResult; }));
+    return claims.sort((a, b) => b.roundDate.localeCompare(a.roundDate));
+  }
   catch { return []; }
 }
 

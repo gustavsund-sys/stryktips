@@ -12,6 +12,7 @@ export interface ExpertStat { expertId: string; expert: string; source: Ballot['
 export interface ExpertStats { updatedAt: string; settledRounds: number; lastRoundDate: string; experts: ExpertStat[]; }
 export type Participant = 'Jocke' | 'Tony' | 'Gustav' | 'Anders' | 'Matta-Råsnygg' | 'Christer';
 export interface SystemResult { maxCorrect: number; winningRows: Record<string, number>; payout: number; }
+export interface OfficialResult { roundDate: string; drawNumber: number; outcomes: Sign[]; payouts: Partial<Record<'10' | '11' | '12' | '13', number>>; }
 export interface ChallengerTip {
   participant: Participant; base: 'expert' | 'chaparral' | 'blank'; originalTips?: Tip[]; finalTips?: Tip[];
   rows: number; cost: number; lockedAt?: { toDate: () => Date }; result?: SystemResult;
@@ -19,7 +20,7 @@ export interface ChallengerTip {
 export interface ClaimRound {
   roundDate: string; drawNumber: number; status: 'unclaimed' | 'claimed' | 'locked' | 'settled'; participant?: Participant;
   base?: 'expert' | 'chaparral'; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
-  lockAt?: { toDate: () => Date }; result?: SystemResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
+  lockAt?: { toDate: () => Date }; result?: SystemResult; officialResult?: OfficialResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
 }
 export interface LiveMatch {
   matchNumber: number; homeTeam: string; awayTeam: string; matchStart: string; status: string; statusId: number;
