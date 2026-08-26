@@ -43,6 +43,40 @@ export function mergeOfficialMatches(matches: ConsensusMatch[], officialMatches:
   });
 }
 
+export function buildOfficialOnlyRound(coupon: OfficialCoupon, checkedAt: string): Record<string, unknown> {
+  const matches: ConsensusMatch[] = coupon.matches.map((match) => ({
+    matchNumber: match.matchNumber,
+    homeTeam: match.homeTeam,
+    awayTeam: match.awayTeam,
+    ballots: [],
+    support: { '1': 0, X: 0, '2': 0 },
+    classification: 'coverage',
+    systemTip: '1X2',
+    publicDistribution: match.distribution,
+    odds: match.odds,
+  }));
+  return omitUndefined({
+    roundDate: coupon.roundDate,
+    updatedAt: checkedAt,
+    status: 'partial',
+    officialOnly: true,
+    matches,
+    sources: { svenskaspel: { status: 'OK', updatedAt: checkedAt, lastSuccessfulUpdate: checkedAt, count: 13 } },
+    expertCount: 0,
+    systemRows: 0,
+    publicDistribution: null,
+    officialRoundId: coupon.officialRoundId,
+    drawNumber: coupon.drawNumber,
+    regCloseTime: coupon.regCloseTime,
+    officialMatches: coupon.matches,
+    officialFingerprint: officialCouponFingerprint(coupon),
+    officialUpdatedAt: coupon.updatedAt,
+    officialCheckedAt: checkedAt,
+    sourceUrl: coupon.sourceUrl,
+    discoveredAt: checkedAt,
+  });
+}
+
 export function planOfficialCoupon(existing: Record<string, unknown> | undefined, coupon: OfficialCoupon, checkedAt: string): OfficialCouponPlan {
   const fingerprint = officialCouponFingerprint(coupon);
   if (existing?.officialRoundId === coupon.officialRoundId && existing?.officialFingerprint === fingerprint) return { change: 'unchanged', fingerprint };

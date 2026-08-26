@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { omitUndefined, planOfficialCoupon } from '../persistence';
+import { buildOfficialOnlyRound, omitUndefined, planOfficialCoupon } from '../persistence';
 import type { OfficialCoupon } from '../types';
 
 describe('Firestore persistence', () => {
@@ -37,5 +37,8 @@ describe('Firestore persistence', () => {
     const third = planOfficialCoupon(stored, changed, 'check-3');
     expect(third.change).toBe('updated');
     expect(third.data?.officialMatches).toEqual(changed.matches);
+    const visible = buildOfficialOnlyRound(coupon, 'check-4');
+    expect(visible).toMatchObject({ roundDate: coupon.roundDate, officialOnly: true, expertCount: 0, systemRows: 0 });
+    expect(visible.matches).toHaveLength(13);
   });
 });
