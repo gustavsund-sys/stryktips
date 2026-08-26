@@ -13,6 +13,10 @@ describe('Svenska Spel-adapter', () => {
     const payload = { draws: [{ productId: 1, drawState: 'Open', drawNumber: 4968, regCloseTime: '2026-08-29T15:59:00+02:00', drawEvents: Array.from({ length: 13 }, (_, index) => ({ eventNumber: index + 1, match: { participants: [{ type: 'home', name: `H${index}` }, { type: 'away', name: `B${index}` }] }, svenskaFolket: { one: '40', x: '30', two: '30' }, odds: { one: null, x: null, two: null } })) }] };
     expect(parseSvenskaSpelApi(payload).matches.every((match) => match.odds === undefined)).toBe(true);
   });
+  it('hämtar Playmakers match-ID från BetRadar-fältet', () => {
+    const payload = { draws: [{ productId: 1, drawState: 'Open', drawNumber: 4968, regCloseTime: '2026-08-29T15:59:00+02:00', drawEvents: Array.from({ length: 13 }, (_, index) => ({ eventNumber: index + 1, providerIds: [{ provider: 'Kambi', type: 'Normal', id: 'fel' }, { provider: 'BetRadar', type: 'Normal', id: `br-${index + 1}` }], match: { participants: [{ type: 'home', name: `H${index}` }, { type: 'away', name: `B${index}` }] }, svenskaFolket: { one: 40, x: 30, two: 30 } })) }] };
+    expect(parseSvenskaSpelApi(payload).matches[0].xStatsMatchId).toBe('br-1');
+  });
   it('bygger en stabil reservnyckel utan drawNumber', () => {
     const matches = Array.from({ length: 13 }, (_, index) => ({ matchNumber: index + 1, homeTeam: `H${index}`, awayTeam: `B${index}`, distribution: { '1': 40, X: 30, '2': 30 } as const }));
     expect(buildOfficialRoundId(undefined, '2026-08-29T15:59:00+02:00', matches)).toBe(buildOfficialRoundId(undefined, '2026-08-29T15:59:00+02:00', matches));

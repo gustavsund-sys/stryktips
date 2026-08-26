@@ -47,7 +47,9 @@ export function parseSvenskaSpelApi(payload: unknown, sourceUrl = SVENSKA_SPEL_A
     const distribution = apiTriplet(event.svenskaFolket, `streck för match ${matchNumber}`);
     if (Math.abs(Object.values(distribution).reduce((sum, value) => sum + value, 0) - 100) > 2) throw new Error(`API_ERROR: strecksummering för match ${matchNumber}`);
     const odds = optionalApiTriplet(event.odds);
-    return { matchNumber, homeTeam: String(homeTeam), awayTeam: String(awayTeam), distribution, odds };
+    const providerIds = Array.isArray(event.providerIds) ? event.providerIds : [];
+    const xStatsMatchId = providerIds.find((item: UnknownRecord) => item.provider === 'BetRadar' && item.type === 'Normal')?.id;
+    return { matchNumber, homeTeam: String(homeTeam), awayTeam: String(awayTeam), distribution, odds, xStatsMatchId: xStatsMatchId ? String(xStatsMatchId) : undefined };
   }).sort((a: OfficialMatch, b: OfficialMatch) => a.matchNumber - b.matchNumber);
   if (matches.length !== 13 || new Set(matches.map((match) => match.matchNumber)).size !== 13) throw new Error(`API_ERROR: Svenska Spel gav ${matches.length}/13 matcher`);
   const updatedAt = draw.drawEvents.map((event: UnknownRecord) => event.svenskaFolket?.date).filter(Boolean).sort().at(-1) ?? now.toISOString();

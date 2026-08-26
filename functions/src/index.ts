@@ -10,6 +10,7 @@ import { BETTINGSTUGAN_INDEX, parseBettingstugan } from './scrapers/bettingstuga
 import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklart';
 import { validatePicks } from './scrapers/parser';
 import { fetchSvenskaSpelCoupon } from './scrapers/svenskaspel';
+import { enrichCouponWithXStats } from './scrapers/playmaker';
 import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
 import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
@@ -92,7 +93,8 @@ function stockholmDate(): string {
 export async function discoverOfficialRound(): Promise<{ change: 'new' | 'updated' | 'unchanged'; roundDate: string; officialRoundId: string }> {
   const checkedAt = new Date().toISOString();
   try {
-    const coupon = await fetchSvenskaSpelCoupon();
+    const xStatsResult = await enrichCouponWithXStats(await fetchSvenskaSpelCoupon());
+    const coupon = xStatsResult.coupon;
     const matching = await db.collection('rounds').where('officialRoundId', '==', coupon.officialRoundId).limit(1).get();
     const roundRef = matching.docs[0]?.ref ?? db.doc(`rounds/${coupon.roundDate}`);
     const currentRef = db.doc('stryktipset/current');
@@ -109,7 +111,7 @@ export async function discoverOfficialRound(): Promise<{ change: 'new' | 'update
       }
       return roundPlan.change;
     });
-    const log = { kind: 'officialCouponCheck', at: checkedAt, outcome: change, roundDate: coupon.roundDate, officialRoundId: coupon.officialRoundId, drawNumber: coupon.drawNumber, createdAt: FieldValue.serverTimestamp() };
+    const log = { kind: 'officialCouponCheck', at: checkedAt, outcome: change, roundDate: coupon.roundDate, officialRoundId: coupon.officialRoundId, drawNumber: coupon.drawNumber, xStatsCoverage: xStatsResult.count, xStatsErrors: xStatsResult.errors, createdAt: FieldValue.serverTimestamp() };
     const batch = db.batch();
     if (change !== 'unchanged') batch.set(db.collection('scrapeRuns').doc(), log);
     batch.set(db.doc('systemStatus/officialCoupon'), log);
@@ -154,7 +156,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   const previous = previousSnap.data() as RoundDocument | undefined;
   const approvedAliases = await db.collection('teamAliases').get();
   approvedAliases.forEach((snapshot) => { const alias = snapshot.data(); if (typeof alias.alias === 'string' && typeof alias.canonical === 'string') addTeamAlias(alias.alias, alias.canonical); });
-  const [expertResults, officialResult] = await Promise.all([Promise.allSettled(scrapers.map(scrape)), fetchSvenskaSpelCoupon().then((value) => ({ status: 'fulfilled' as const, value })).catch((reason) => ({ status: 'rejected' as const, reason }))]);
+  const [expertResults, officialResult] = await Promise.all([Promise.allSettled(scrapers.map(scrape)), fetchSvenskaSpelCoupon().then(enrichCouponWithXStats).then((result) => ({ status: 'fulfilled' as const, value: result.coupon })).catch((reason) => ({ status: 'rejected' as const, reason }))]);
   const picks: ExpertPick[] = []; const statuses: Record<string, SourceStatus> = {};
   expertResults.forEach((result, index) => {
     const id = scrapers[index].id;
@@ -186,19 +188,24 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   let matches = limitSystemRows(buildConsensus(picks), 300); let officialCoupon: OfficialCoupon | undefined;
   if (officialResult.status === 'fulfilled') {
     try {
-      officialCoupon = officialResult.value;
+      const previousOfficialMatches = previous?.officialMatches ?? [];
+      officialCoupon = { ...officialResult.value, matches: officialResult.value.matches.map((match) => {
+        const old = previousOfficialMatches.find((item) => item.matchNumber === match.matchNumber && item.xStatsMatchId === match.xStatsMatchId);
+        return match.xStats || !old?.xStats ? match : { ...match, xStats: old.xStats };
+      }) };
       matches = matches.map((match) => {
         const official = officialCoupon!.matches.find((item) => item.matchNumber === match.matchNumber);
         if (!official || !sameTeam(match.homeTeam, official.homeTeam) || !sameTeam(match.awayTeam, official.awayTeam)) throw new Error(`MATCH_MISMATCH: Svenska Spel match ${match.matchNumber}`);
         const expertDeviation = SIGNS.map((sign) => ({ sign, difference: Math.round(match.support[sign] / match.ballots.length * 100) - official.distribution[sign] })).sort((a, b) => b.difference - a.difference)[0];
-        return { ...match, homeTeam: official.homeTeam, awayTeam: official.awayTeam, publicDistribution: official.distribution, odds: official.odds, expertDeviation: expertDeviation.difference >= Number(process.env.EXPERT_DEVIATION_THRESHOLD ?? 25) ? expertDeviation : undefined };
+        const old = previous?.matches.find((item) => item.matchNumber === match.matchNumber && sameTeam(item.homeTeam, official.homeTeam) && sameTeam(item.awayTeam, official.awayTeam));
+        return { ...match, homeTeam: official.homeTeam, awayTeam: official.awayTeam, publicDistribution: official.distribution, odds: official.odds, xStats: official.xStats ?? old?.xStats, expertDeviation: expertDeviation.difference >= Number(process.env.EXPERT_DEVIATION_THRESHOLD ?? 25) ? expertDeviation : undefined };
       });
       statuses.svenskaspel = { status: 'OK', updatedAt: now, lastSuccessfulUpdate: now, count: 13 };
     } catch (error) { statuses.svenskaspel = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.svenskaspel?.lastSuccessfulUpdate, message: error instanceof Error ? error.message : String(error) }; }
   } else statuses.svenskaspel = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.svenskaspel?.lastSuccessfulUpdate, message: officialResult.reason instanceof Error ? officialResult.reason.message : String(officialResult.reason) };
-  if (statuses.svenskaspel.status === 'ERROR' && previous) matches = matches.map((match) => { const old = previous.matches.find((item) => item.matchNumber === match.matchNumber && sameTeam(item.homeTeam, match.homeTeam) && sameTeam(item.awayTeam, match.awayTeam)); return old?.publicDistribution ? { ...match, publicDistribution: old.publicDistribution, odds: old.odds, expertDeviation: old.expertDeviation } : match; });
+  if (statuses.svenskaspel.status === 'ERROR' && previous) matches = matches.map((match) => { const old = previous.matches.find((item) => item.matchNumber === match.matchNumber && sameTeam(item.homeTeam, match.homeTeam) && sameTeam(item.awayTeam, match.awayTeam)); return old?.publicDistribution ? { ...match, publicDistribution: old.publicDistribution, odds: old.odds, xStats: old.xStats, expertDeviation: old.expertDeviation } : match; });
   const roundDate = process.env.ROUND_DATE || officialCoupon?.roundDate || previous?.roundDate || stockholmDate();
-  const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', officialOnly: false, matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches), ...(officialCoupon ? { officialRoundId: officialCoupon.officialRoundId, drawNumber: officialCoupon.drawNumber, regCloseTime: officialCoupon.regCloseTime, officialMatches: officialCoupon.matches, officialFingerprint: officialCouponFingerprint(officialCoupon) } : {}) };
+  const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', officialOnly: false, matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches), ...(officialCoupon ? { officialRoundId: officialCoupon.officialRoundId, drawNumber: officialCoupon.drawNumber, regCloseTime: officialCoupon.regCloseTime, officialMatches: officialCoupon.matches, officialFingerprint: officialCouponFingerprint(officialCoupon), xStatsCoverage: officialCoupon.matches.filter((match) => match.xStats).length } : {}) };
   const firestoreDocument = omitUndefined(document);
   const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.doc('aliasReviews/current'), { status: 'none', updatedAt: now, candidates: [] }); batch.set(db.doc('systemStatus/latest'), { at: now, published: true, roundDate, statuses: omitUndefined(statuses) }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
   logger.info('Kupong publicerad', { roundDate, matches: matches.length, experts: document.expertCount }); return { published: true, roundDate };

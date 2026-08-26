@@ -32,14 +32,21 @@ export function officialCouponFingerprint(coupon: OfficialCoupon): string {
     officialRoundId: coupon.officialRoundId,
     roundDate: coupon.roundDate,
     regCloseTime: coupon.regCloseTime,
-    matches: coupon.matches,
+    // updatedAt reflects fetch time and must not turn an unchanged xStats
+    // payload into a new official coupon revision on every scheduled run.
+    matches: coupon.matches.map((match) => ({ ...match, xStats: match.xStats ? {
+      matchId: match.xStats.matchId,
+      source: match.xStats.source,
+      entireSeason: match.xStats.entireSeason,
+      lastFiveGames: match.xStats.lastFiveGames,
+    } : undefined })),
   })).digest('hex');
 }
 
 export function mergeOfficialMatches(matches: ConsensusMatch[], officialMatches: OfficialMatch[]): ConsensusMatch[] {
   return matches.map((match) => {
     const official = officialMatches.find((item) => item.matchNumber === match.matchNumber);
-    return official ? omitUndefined({ ...match, homeTeam: official.homeTeam, awayTeam: official.awayTeam, publicDistribution: official.distribution, odds: official.odds }) : match;
+    return official ? omitUndefined({ ...match, homeTeam: official.homeTeam, awayTeam: official.awayTeam, publicDistribution: official.distribution, odds: official.odds, xStats: official.xStats ?? match.xStats }) : match;
   });
 }
 
@@ -54,6 +61,7 @@ export function buildOfficialOnlyRound(coupon: OfficialCoupon, checkedAt: string
     systemTip: '1X2',
     publicDistribution: match.distribution,
     odds: match.odds,
+    xStats: match.xStats,
   }));
   return omitUndefined({
     roundDate: coupon.roundDate,
@@ -72,13 +80,19 @@ export function buildOfficialOnlyRound(coupon: OfficialCoupon, checkedAt: string
     officialFingerprint: officialCouponFingerprint(coupon),
     officialUpdatedAt: coupon.updatedAt,
     officialCheckedAt: checkedAt,
+    xStatsCoverage: coupon.matches.filter((match) => match.xStats).length,
     sourceUrl: coupon.sourceUrl,
     discoveredAt: checkedAt,
   });
 }
 
 export function planOfficialCoupon(existing: Record<string, unknown> | undefined, coupon: OfficialCoupon, checkedAt: string): OfficialCouponPlan {
-  const fingerprint = officialCouponFingerprint(coupon);
+  const previousOfficialMatches = Array.isArray(existing?.officialMatches) ? existing.officialMatches as OfficialMatch[] : [];
+  const effectiveCoupon = { ...coupon, matches: coupon.matches.map((match) => {
+    const previous = previousOfficialMatches.find((item) => item.matchNumber === match.matchNumber && item.xStatsMatchId === match.xStatsMatchId);
+    return match.xStats || !previous?.xStats ? match : { ...match, xStats: previous.xStats };
+  }) };
+  const fingerprint = officialCouponFingerprint(effectiveCoupon);
   if (existing?.officialRoundId === coupon.officialRoundId && existing?.officialFingerprint === fingerprint) return { change: 'unchanged', fingerprint };
   const change: OfficialCouponChange = existing ? 'updated' : 'new';
   const existingMatches = Array.isArray(existing?.matches) ? existing.matches as ConsensusMatch[] : undefined;
@@ -90,12 +104,13 @@ export function planOfficialCoupon(existing: Record<string, unknown> | undefined
       officialRoundId: coupon.officialRoundId,
       drawNumber: coupon.drawNumber,
       regCloseTime: coupon.regCloseTime,
-      officialMatches: coupon.matches,
+      officialMatches: effectiveCoupon.matches,
       officialFingerprint: fingerprint,
       officialUpdatedAt: coupon.updatedAt,
       officialCheckedAt: checkedAt,
       sourceUrl: coupon.sourceUrl,
-      ...(existingMatches ? { matches: mergeOfficialMatches(existingMatches, coupon.matches) } : {}),
+      xStatsCoverage: effectiveCoupon.matches.filter((match) => match.xStats).length,
+      ...(existingMatches ? { matches: mergeOfficialMatches(existingMatches, effectiveCoupon.matches) } : {}),
       ...(!existing ? { discoveredAt: checkedAt } : {}),
     }),
   };
