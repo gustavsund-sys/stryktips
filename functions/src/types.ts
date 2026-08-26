@@ -26,13 +26,14 @@ export interface OfficialMatch {
   matchNumber: number; homeTeam: string; awayTeam: string;
   distribution: Record<BaseSign, number>; odds?: Record<BaseSign, number>;
 }
-export interface OfficialCoupon { roundDate: string; drawNumber: number; regCloseTime: string; updatedAt: string; matches: OfficialMatch[]; sourceUrl: string; }
+export interface OfficialCoupon { roundDate: string; drawNumber: number; officialRoundId: string; regCloseTime: string; updatedAt: string; matches: OfficialMatch[]; sourceUrl: string; }
 
 export interface SourceStatus { status: 'OK' | 'ERROR'; updatedAt: string; lastSuccessfulUpdate?: string; message?: string; count?: number; }
 export interface RoundDocument {
   roundDate: string; updatedAt: string; status: 'ok' | 'partial'; matches: ConsensusMatch[];
   sources: Record<string, SourceStatus>; expertCount: number; systemRows: number;
   publicDistribution: null; highChaparral: { tips: Tip[]; rows: number; pivots: number[]; singleRow: BaseSign[]; estimatedOdds?: number };
+  officialRoundId?: string; drawNumber?: number; regCloseTime?: string; officialMatches?: OfficialMatch[]; officialFingerprint?: string;
 }
 
 export interface OfficialResult { roundDate: string; drawNumber: number; outcomes: BaseSign[]; payouts: Partial<Record<10 | 11 | 12 | 13, number>>; }

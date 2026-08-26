@@ -9,11 +9,11 @@ import { extractPicksWithAI } from './scrapers/ai-fallback';
 import { BETTINGSTUGAN_INDEX, parseBettingstugan } from './scrapers/bettingstugan';
 import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklart';
 import { validatePicks } from './scrapers/parser';
-import { parseSvenskaSpel, SVENSKA_SPEL_URL } from './scrapers/svenskaspel';
+import { fetchSvenskaSpelCoupon } from './scrapers/svenskaspel';
 import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
 import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
-import { omitUndefined } from './persistence';
+import { officialCouponFingerprint, omitUndefined, planOfficialCoupon } from './persistence';
 import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
 import { SIGNS, type ConsensusMatch, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
@@ -56,7 +56,7 @@ export async function updateExpertStats(): Promise<{ settled: boolean; roundDate
 }
 
 export async function prepareClaimRound(): Promise<{ created: boolean; roundDate: string }> {
-  const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL));
+  const coupon = await fetchSvenskaSpelCoupon();
   if (coupon.roundDate < stockholmDate()) throw new Error('CURRENT_COUPON_NOT_PUBLISHED');
   const ref = db.doc(`claimRounds/${coupon.roundDate}`);
   const created = await db.runTransaction(async (transaction) => {
@@ -67,14 +67,14 @@ export async function prepareClaimRound(): Promise<{ created: boolean; roundDate
 }
 
 export async function clearCurrentChallengers(): Promise<{ cleared: number; roundDate: string }> {
-  const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL)); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
+  const coupon = await fetchSvenskaSpelCoupon(); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
   if (!snapshot.exists) throw new Error('CLAIM_ROUND_NOT_FOUND');
   const challengers = snapshot.data()?.challengers ?? {}; const privateTips = await db.collection('challengerTips').where('roundDate', '==', coupon.roundDate).get(); const batch = db.batch(); privateTips.docs.forEach((document) => batch.delete(document.ref)); batch.update(ref, { challengers: {}, challengersClearedAt: FieldValue.serverTimestamp() }); await batch.commit();
   return { cleared: Object.keys(challengers).length, roundDate: coupon.roundDate };
 }
 
 export async function migrateCurrentChallengers(): Promise<{ migrated: number; roundDate: string }> {
-  const coupon = parseSvenskaSpel(await fetchHtml(SVENSKA_SPEL_URL)); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
+  const coupon = await fetchSvenskaSpelCoupon(); const ref = db.doc(`claimRounds/${coupon.roundDate}`); const snapshot = await ref.get();
   if (!snapshot.exists) throw new Error('CLAIM_ROUND_NOT_FOUND');
   const challengers = snapshot.data()?.challengers ?? {}; const summaries: Record<string, unknown> = {}; const batch = db.batch(); let migrated = 0;
   for (const [participant, value] of Object.entries(challengers)) {
@@ -87,6 +87,40 @@ export async function migrateCurrentChallengers(): Promise<{ migrated: number; r
 
 function stockholmDate(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+export async function discoverOfficialRound(): Promise<{ change: 'new' | 'updated' | 'unchanged'; roundDate: string; officialRoundId: string }> {
+  const checkedAt = new Date().toISOString();
+  try {
+    const coupon = await fetchSvenskaSpelCoupon();
+    const matching = await db.collection('rounds').where('officialRoundId', '==', coupon.officialRoundId).limit(1).get();
+    const roundRef = matching.docs[0]?.ref ?? db.doc(`rounds/${coupon.roundDate}`);
+    const currentRef = db.doc('stryktipset/current');
+    const change = await db.runTransaction(async (transaction) => {
+      const [roundSnapshot, currentSnapshot] = await Promise.all([transaction.get(roundRef), transaction.get(currentRef)]);
+      const roundPlan = planOfficialCoupon(roundSnapshot.exists ? roundSnapshot.data() : undefined, coupon, checkedAt);
+      if (roundPlan.data) transaction.set(roundRef, roundPlan.data, { merge: true });
+      const current = currentSnapshot.data();
+      if (currentSnapshot.exists && (current?.officialRoundId === coupon.officialRoundId || current?.roundDate === coupon.roundDate)) {
+        const currentPlan = planOfficialCoupon(current, coupon, checkedAt);
+        if (currentPlan.data) transaction.set(currentRef, currentPlan.data, { merge: true });
+      }
+      return roundPlan.change;
+    });
+    const log = { kind: 'officialCouponCheck', at: checkedAt, outcome: change, roundDate: coupon.roundDate, officialRoundId: coupon.officialRoundId, drawNumber: coupon.drawNumber, createdAt: FieldValue.serverTimestamp() };
+    const batch = db.batch();
+    if (change !== 'unchanged') batch.set(db.collection('scrapeRuns').doc(), log);
+    batch.set(db.doc('systemStatus/officialCoupon'), log);
+    await batch.commit();
+    logger.info(change === 'new' ? 'Ny officiell omgång hittades' : change === 'updated' ? 'Officiell omgång uppdaterades' : 'Officiell omgång kontrollerad utan ändring', log);
+    return { change, roundDate: coupon.roundDate, officialRoundId: coupon.officialRoundId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const log = { kind: 'officialCouponCheck', at: checkedAt, outcome: 'failed', message, createdAt: FieldValue.serverTimestamp() };
+    const batch = db.batch(); batch.set(db.collection('scrapeRuns').doc(), log); batch.set(db.doc('systemStatus/officialCoupon'), log); await batch.commit();
+    logger.error('Kontroll av officiell omgång misslyckades; befintliga data behålls', { at: checkedAt, message });
+    throw error;
+  }
 }
 
 async function scrapeOnce(source: Scraper, useAI: boolean): Promise<ExpertPick[]> {
@@ -118,7 +152,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   const previous = previousSnap.data() as RoundDocument | undefined;
   const approvedAliases = await db.collection('teamAliases').get();
   approvedAliases.forEach((snapshot) => { const alias = snapshot.data(); if (typeof alias.alias === 'string' && typeof alias.canonical === 'string') addTeamAlias(alias.alias, alias.canonical); });
-  const [expertResults, officialResult] = await Promise.all([Promise.allSettled(scrapers.map(scrape)), fetchHtml(SVENSKA_SPEL_URL).then((html) => parseSvenskaSpel(html)).then((value) => ({ status: 'fulfilled' as const, value })).catch((reason) => ({ status: 'rejected' as const, reason }))]);
+  const [expertResults, officialResult] = await Promise.all([Promise.allSettled(scrapers.map(scrape)), fetchSvenskaSpelCoupon().then((value) => ({ status: 'fulfilled' as const, value })).catch((reason) => ({ status: 'rejected' as const, reason }))]);
   const picks: ExpertPick[] = []; const statuses: Record<string, SourceStatus> = {};
   expertResults.forEach((result, index) => {
     const id = scrapers[index].id;
@@ -162,7 +196,7 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   } else statuses.svenskaspel = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.svenskaspel?.lastSuccessfulUpdate, message: officialResult.reason instanceof Error ? officialResult.reason.message : String(officialResult.reason) };
   if (statuses.svenskaspel.status === 'ERROR' && previous) matches = matches.map((match) => { const old = previous.matches.find((item) => item.matchNumber === match.matchNumber && sameTeam(item.homeTeam, match.homeTeam) && sameTeam(item.awayTeam, match.awayTeam)); return old?.publicDistribution ? { ...match, publicDistribution: old.publicDistribution, odds: old.odds, expertDeviation: old.expertDeviation } : match; });
   const roundDate = process.env.ROUND_DATE || officialCoupon?.roundDate || previous?.roundDate || stockholmDate();
-  const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches) };
+  const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches), ...(officialCoupon ? { officialRoundId: officialCoupon.officialRoundId, drawNumber: officialCoupon.drawNumber, regCloseTime: officialCoupon.regCloseTime, officialMatches: officialCoupon.matches, officialFingerprint: officialCouponFingerprint(officialCoupon) } : {}) };
   const firestoreDocument = omitUndefined(document);
   const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.doc('aliasReviews/current'), { status: 'none', updatedAt: now, candidates: [] }); batch.set(db.doc('systemStatus/latest'), { at: now, published: true, roundDate, statuses: omitUndefined(statuses) }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
   logger.info('Kupong publicerad', { roundDate, matches: matches.length, experts: document.expertCount }); return { published: true, roundDate };

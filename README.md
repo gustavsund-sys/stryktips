@@ -18,7 +18,7 @@ Svenska Spel ───── officiell kupong + streck + odds ─┤
 
 Varje expert/skribent blir en egen röst. `stryktipset/current` driver startsidan, medan `rounds/{YYYY-MM-DD}` bevarar historiken och varje matchs `publicDistribution` lagrar Svenska Spels aktuella streck.
 
-Svenska Spel behandlas inte som expert. Adaptern läser den publikt inbäddade `preloadedState`-datan på den officiella sidan och använder den som matchreferens samt för streck och eventuella odds. Understreckats publicerade systemförslag blir en separat redaktionsröst. Om deras senaste artikel avser en äldre kupong markeras källan som felaktig och övriga källor fortsätter fungera.
+Svenska Spel behandlas inte som expert. Adaptern läser den aktuella kupongen från Svenska Spels publika JSON-API och använder `drawNumber` som stabilt omgångs-ID samt spelstopp och matchlista som reservnyckel. API:t ger matchreferens, aktuella streck och eventuella odds. Understreckats publicerade systemförslag blir en separat redaktionsröst. Om deras senaste artikel avser en äldre kupong markeras källan som felaktig och övriga källor fortsätter fungera.
 
 ## Lokal start
 
@@ -56,7 +56,9 @@ Parser-fixtures finns i `functions/src/__tests__/fixtures`. De testar 13 unika m
 4. Kontrollera kontaktuppgiften i scraper-funktionens User-Agent.
 5. Firestore-regler och datauppdatering körs av GitHub Actions. Frontend deployas automatiskt till GitHub Pages från `main`.
 
-Produktionsuppdateringen körs via `.github/workflows/update-data.yml`, inte Cloud Functions. Schemat kör varje fredag klockan 04:00 svensk tid och skapar grundraden från Rekatochklart och Bettingstugan samt tar med Tipsmedoss när deras aktuella förslag är publicerat. En andra automatisk körning görs lördag klockan 12:00 svensk tid för att ta med Understreckat, vars tips normalt publiceras under lördagen. Konsensus räknas då om och ersätter fredagsraden endast om hela den nya datan valideras. Workflowet kan fortfarande startas manuellt från GitHub Actions som reserv. Därmed räcker Firebase Spark-planen.
+Produktionsuppdateringen körs via `.github/workflows/update-data.yml`, inte Cloud Functions. Ett lätt, idempotent API-flöde kontrollerar Svenska Spel var tredje timme oberoende av veckodag och skapar en ny post i `rounds` först när ett nytt `drawNumber` upptäcks. Samma omgång skrivs inte dubbelt; endast ändrade streck, odds eller matchdata uppdateras. Senaste kontrollen lagras i `systemStatus/officialCoupon`, medan `scrapeRuns` bara får en historikpost när en omgång skapas, ändras eller hämtningen misslyckas. Ofullständiga eller misslyckade API-svar kan inte skriva över fungerande kupongdata.
+
+De befintliga expertkörningarna ligger kvar: fredag skapas grundraden från Rekatochklart och Bettingstugan, och lördag räknas konsensus om när Understreckats tips normalt finns. Dessa tider styr expertmaterialet, inte upptäckten av Svenska Spels nya omgång.
 
 Ett Firebase service account används endast av GitHub Actions och lagras som repository-secret `FIREBASE_SERVICE_ACCOUNT`. Firestore-reglerna ger webbläsare publik läsrätt men ingen skrivrätt; endast workflowets service account skriver data.
 
