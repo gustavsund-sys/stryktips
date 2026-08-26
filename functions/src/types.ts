@@ -34,6 +34,7 @@ export interface RoundDocument {
   sources: Record<string, SourceStatus>; expertCount: number; systemRows: number;
   publicDistribution: null; highChaparral: { tips: Tip[]; rows: number; pivots: number[]; singleRow: BaseSign[]; estimatedOdds?: number };
   officialRoundId?: string; drawNumber?: number; regCloseTime?: string; officialMatches?: OfficialMatch[]; officialFingerprint?: string;
+  officialOnly?: boolean;
 }
 
 export interface OfficialResult { roundDate: string; drawNumber: number; outcomes: BaseSign[]; payouts: Partial<Record<10 | 11 | 12 | 13, number>>; }
