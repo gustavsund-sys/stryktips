@@ -1,4 +1,4 @@
-import type { ConsensusMatch, ExpertStat, ExpertStatsDocument, OfficialResult } from '../types';
+import type { ConsensusMatch, ExpertStatsDocument, OfficialResult } from '../types';
 
 export const SVENSKA_SPEL_RESULTS_URL = 'https://api.spela.svenskaspel.se/draw/1/stryktipset/draws/result';
 

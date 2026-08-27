@@ -22,5 +22,5 @@ export async function extractPicksWithAI(html: string, source: SourceId, sourceU
   const text = payload.output?.flatMap((item) => item.content ?? []).find((item) => item.type === 'output_text')?.text;
   if (!text) throw new Error('AI_FALLBACK_EMPTY');
   const parsed = JSON.parse(text) as AIExtraction;
-  return parsed.matches.map(({ evidence: _evidence, ...match }) => ({ ...match, expert: parsed.expert || source, source, sourceUrl }));
+  return parsed.matches.map(({ evidence, ...match }) => { void evidence; return { ...match, expert: parsed.expert || source, source, sourceUrl }; });
 }
