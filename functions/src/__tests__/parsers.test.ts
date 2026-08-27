@@ -11,6 +11,11 @@ import { fetchLatestWordpressArticle, findCurrentArticle } from '../scrapers/fet
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
 describe('källparser', () => {
   it('läser 13 matcher från Rekatochklart', () => { const picks = parseRekatochklart(fixture('rekatochklart.html'), 'https://example.test/rk'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[1]).toMatchObject({ matchNumber: 2, homeTeam: 'Burnley', awayTeam: 'Sunderland', tip: 'X2', expert: 'Anna RK' }); });
+  it('läser Rekatochklarts markerade matchres-tecken i stället för första synliga tecknet', () => {
+    const tips = ['X2','1X','1','1X2','1X2','1','1X2','1X2','1X','1X','2','1X2','1X'];
+    const html = `<table>${tips.map((tip, index) => `<tr><td class="match-index">${index + 1}.</td><td class="match-name">Hemma ${index + 1} - Borta ${index + 1}</td><td class="results matchres${tip}"><span>1</span><span>X</span><span>2</span></td></tr>`).join('')}</table>`;
+    const picks = parseRekatochklart(html, 'https://example.test/rk-current'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks.map((pick) => pick.tip)).toEqual(tips); expect(picks[0]).toMatchObject({ homeTeam:'Hemma 1', awayTeam:'Borta 1', tip:'X2' });
+  });
   it('läser och normaliserar 13 Bettingstugan-rader', () => { const picks = parseBettingstugan(fixture('bettingstugan.html'), 'https://example.test/bs'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[7].tip).toBe('12'); });
   it('vägrar publicera en ofullständig kupong', () => { const picks = parseRekatochklart('<article><p>1. A - B 1</p></article>', 'https://example.test'); expect(() => validatePicks(picks)).toThrow(/1\/13/); });
   it('läser Understreckats publicerade system som en separat expert', () => { const picks = parseUnderstreckat(fixture('understreckat.html'), 'https://understreckat.se/stryktipset/v33-2026'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'1X', expert:'Understreckat / Redaktionen', source:'understreckat' }); });
