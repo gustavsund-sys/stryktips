@@ -4,7 +4,7 @@ import { logger } from 'firebase-functions';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { buildHighChaparral, calculateRows, buildConsensus, limitSystemRows } from './consensus/engine';
-import { findCurrentArticle, fetchHtml } from './scrapers/fetch';
+import { findCurrentArticle, fetchHtml, fetchLatestWordpressArticle } from './scrapers/fetch';
 import { extractPicksWithAI } from './scrapers/ai-fallback';
 import { BETTINGSTUGAN_INDEX, parseBettingstugan } from './scrapers/bettingstugan';
 import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklart';
@@ -12,7 +12,7 @@ import { validatePicks } from './scrapers/parser';
 import { fetchSvenskaSpelCoupon } from './scrapers/svenskaspel';
 import { enrichCouponWithXStats } from './scrapers/playmaker';
 import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
-import { parseTipsmedoss, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
+import { parseTipsmedoss, TIPSMEDOSS_API, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { addTeamAlias, sameTeam } from './normalization/teams';
 import { buildOfficialOnlyRound, officialCouponFingerprint, omitUndefined, planOfficialCoupon } from './persistence';
 import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
@@ -128,9 +128,21 @@ export async function discoverOfficialRound(): Promise<{ change: 'new' | 'update
 }
 
 async function scrapeOnce(source: Scraper, useAI: boolean): Promise<ExpertPick[]> {
-  const index = await fetchHtml(source.indexUrl); let articleUrl = source.indexUrl;
-  try { articleUrl = findCurrentArticle(index, source.indexUrl); } catch { /* index may itself contain the coupon */ }
-  const html = articleUrl === source.indexUrl ? index : await fetchHtml(articleUrl);
+  let articleUrl: string; let html: string;
+  if (source.id === 'tipsmedoss') {
+    try {
+      ({ url: articleUrl, html } = await fetchLatestWordpressArticle(TIPSMEDOSS_API, /^Stryktipset\b/i));
+    }
+    catch {
+      const index = await fetchHtml(source.indexUrl); articleUrl = source.indexUrl;
+      try { articleUrl = findCurrentArticle(index, source.indexUrl); } catch { /* index may itself contain the coupon */ }
+      html = articleUrl === source.indexUrl ? index : await fetchHtml(articleUrl);
+    }
+  } else {
+    const index = await fetchHtml(source.indexUrl); articleUrl = source.indexUrl;
+    try { articleUrl = findCurrentArticle(index, source.indexUrl); } catch { /* index may itself contain the coupon */ }
+    html = articleUrl === source.indexUrl ? index : await fetchHtml(articleUrl);
+  }
   try { const picks = source.parse(html, articleUrl); validatePicks(picks); return picks; }
   catch (parserError) {
     logger.warn('Parsern hittade inte en komplett kupong', { source: source.id, articleUrl, htmlBytes: html.length, title: html.match(/<title[^>]*>([^<]*)/i)?.[1]?.trim() });

@@ -10,6 +10,17 @@ export async function fetchHtml(url: string): Promise<string> {
   return response.text();
 }
 
+type WordpressPost = { link?: string; title?: { rendered?: string }; content?: { rendered?: string } };
+
+export async function fetchLatestWordpressArticle(apiUrl: string, titlePattern: RegExp): Promise<{ html: string; url: string }> {
+  const response = await fetch(apiUrl, { headers: { 'user-agent': USER_AGENT, accept: 'application/json', 'accept-language': 'sv-SE,sv;q=0.9,en;q=0.7', 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(`HTTP_${response.status}: ${apiUrl}`);
+  const posts = await response.json() as WordpressPost[];
+  const post = posts.find((item) => titlePattern.test(item.title?.rendered ?? '') && item.link && item.content?.rendered);
+  if (!post?.link || !post.content?.rendered) throw new Error('WORDPRESS_ARTICLE_NOT_FOUND');
+  return { url: post.link, html: `<article><div class="entry-content">${post.content.rendered}</div></article>` };
+}
+
 export function findCurrentArticle(indexHtml: string, baseUrl: string): string {
   const $ = cheerio.load(indexHtml); const base = new URL(baseUrl);
   const candidates = $('a[href]').map((_, element) => {

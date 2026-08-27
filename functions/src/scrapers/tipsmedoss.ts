@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import type { ExpertPick, Tip } from '../types';
 
 export const TIPSMEDOSS_INDEX = 'https://tipsmedoss.com/category/stryktipsforslag/';
+export const TIPSMEDOSS_API = 'https://tipsmedoss.com/wp-json/wp/v2/posts?search=Stryktipset&per_page=10&_fields=link,date,title,content';
 const validTips = new Set<Tip>(['1', 'X', '2', '1X', 'X2', '12', '1X2']);
 const rowPattern = /^(1[0-3]|[1-9])\.\s+(.+?)\s+[–—-]\s+(.+?),\s*(1\s*X\s*2|1\s*X|X\s*2|1\s*2|1|X|2)\s*$/i;
 

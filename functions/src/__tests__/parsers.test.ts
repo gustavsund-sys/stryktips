@@ -6,7 +6,7 @@ import { parseRekatochklart } from '../scrapers/rekatochklart';
 import { validatePicks } from '../scrapers/parser';
 import { parseUnderstreckat } from '../scrapers/understreckat';
 import { parseTipsmedoss } from '../scrapers/tipsmedoss';
-import { findCurrentArticle } from '../scrapers/fetch';
+import { fetchLatestWordpressArticle, findCurrentArticle } from '../scrapers/fetch';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
 describe('källparser', () => {
@@ -17,4 +17,13 @@ describe('källparser', () => {
   it('låter inte sidmetadata följa med i Understreckats expertnamn', () => { const html = fixture('understreckat.html').replace('Av Redaktionen · 5 min läsning', 'Av RedaktionenMatcher13Systemet768 rader'); const picks = parseUnderstreckat(html, 'https://understreckat.se/stryktipset/v34-2026'); expect(picks[0].expert).toBe('Understreckat / Redaktionen'); });
   it('läser Tipsmedoss veckoförslag och normaliserar tecken med mellanrum', () => { const picks = parseTipsmedoss(fixture('tipsmedoss.html'), 'https://tipsmedoss.com/2026/stryktipsforslag/stryktipset-22-8/'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'12', expert:'Tipsmedoss / Kamil Sytniowski', source:'tipsmedoss' }); });
   it('väljer Tipsmedoss senaste artikel även när den ligger under fotboll', () => { const html = '<a href="/2026/fotboll/stryktipset-29-8-analys-spelforslag/">Stryktipset 29/8: Analys</a><a href="/2026/stryktipsforslag/stryktipset-22-8-analys/">Stryktipset 22/8: Analys</a>'; expect(findCurrentArticle(html, 'https://tipsmedoss.com/category/stryktipsforslag/')).toContain('/fotboll/stryktipset-29-8-'); });
+  it('hämtar senaste Stryktipset-artikeln via WordPress API och hoppar över Europatipset', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify([
+      { link:'https://tipsmedoss.com/europa', title:{ rendered:'Europatipset 27/8: Analys' }, content:{ rendered:'<p>fel</p>' } },
+      { link:'https://tipsmedoss.com/stryktipset-29-8', title:{ rendered:'Stryktipset 29/8: Analys' }, content:{ rendered:'<p>1. A – B, 1</p>' } },
+    ]));
+    try { const article = await fetchLatestWordpressArticle('https://example.test/wp-json', /^Stryktipset\b/i); expect(article.url).toContain('stryktipset-29-8'); expect(article.html).toContain('entry-content'); }
+    finally { globalThis.fetch = originalFetch; }
+  });
 });
