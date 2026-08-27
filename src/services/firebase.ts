@@ -77,11 +77,21 @@ export async function claimRound(roundDate: string, participant: Participant, pa
   await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'unclaimed') throw new Error('Omgången har redan claimats'); transaction.update(ref, { status: 'claimed', participant, claimedAt: serverTimestamp() }); });
 }
 
+export async function saveClaimDraft(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', draftTips: Tip[], password: string): Promise<void> {
+  if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
+  if (draftTips.length !== 13 || draftTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Utkastet måste innehålla 13 giltiga matcher');
+  const draftRows = draftTips.reduce((total, tip) => total * tip.length, 1); if (draftRows > 300) throw new Error('Systemet får inte överstiga 300 rader');
+  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången är inte öppen för utkast');
+    transaction.update(ref, { participant, draftBase: base, draftTips, draftRows, draftSavedAt: serverTimestamp() });
+  });
+}
+
 export async function lockClaimRound(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Raden måste innehålla 13 giltiga matcher');
   const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 300) throw new Error('Systemet får inte överstiga 300 rader');
-  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången kan inte låsas'); const challengers = { ...((snapshot.data() as ClaimRound).challengers ?? {}) }; delete challengers[participant]; transaction.update(ref, { status: 'locked', participant, challengers, base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp() }); });
+  const ref = doc(db, 'claimRounds', roundDate); await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'claimed') throw new Error('Omgången kan inte låsas'); const challengers = { ...((snapshot.data() as ClaimRound).challengers ?? {}) }; delete challengers[participant]; transaction.update(ref, { status: 'locked', participant, challengers, base, originalTips, finalTips, rows, cost: rows, lockedAt: serverTimestamp(), draftBase: deleteField(), draftTips: deleteField(), draftRows: deleteField(), draftSavedAt: deleteField() }); });
 }
 
 export async function unlockClaimRound(roundDate: string, participant: Participant, password: string): Promise<void> {

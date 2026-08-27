@@ -23,6 +23,7 @@ export interface ChallengerTip {
 export interface ClaimRound {
   roundDate: string; drawNumber: number; status: 'unclaimed' | 'claimed' | 'locked' | 'settled'; participant?: Participant;
   base?: 'expert' | 'chaparral'; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
+  draftBase?: 'expert' | 'chaparral'; draftTips?: Tip[]; draftRows?: number; draftSavedAt?: { toDate: () => Date };
   lockAt?: { toDate: () => Date }; result?: SystemResult; officialResult?: OfficialResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
 }
 export interface LiveMatch {
