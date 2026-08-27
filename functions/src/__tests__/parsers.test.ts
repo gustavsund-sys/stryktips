@@ -6,6 +6,7 @@ import { parseRekatochklart } from '../scrapers/rekatochklart';
 import { validatePicks } from '../scrapers/parser';
 import { parseUnderstreckat } from '../scrapers/understreckat';
 import { parseTipsmedoss } from '../scrapers/tipsmedoss';
+import { findCurrentArticle } from '../scrapers/fetch';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
 describe('källparser', () => {
@@ -15,4 +16,5 @@ describe('källparser', () => {
   it('läser Understreckats publicerade system som en separat expert', () => { const picks = parseUnderstreckat(fixture('understreckat.html'), 'https://understreckat.se/stryktipset/v33-2026'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'1X', expert:'Understreckat / Redaktionen', source:'understreckat' }); });
   it('låter inte sidmetadata följa med i Understreckats expertnamn', () => { const html = fixture('understreckat.html').replace('Av Redaktionen · 5 min läsning', 'Av RedaktionenMatcher13Systemet768 rader'); const picks = parseUnderstreckat(html, 'https://understreckat.se/stryktipset/v34-2026'); expect(picks[0].expert).toBe('Understreckat / Redaktionen'); });
   it('läser Tipsmedoss veckoförslag och normaliserar tecken med mellanrum', () => { const picks = parseTipsmedoss(fixture('tipsmedoss.html'), 'https://tipsmedoss.com/2026/stryktipsforslag/stryktipset-22-8/'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'12', expert:'Tipsmedoss / Kamil Sytniowski', source:'tipsmedoss' }); });
+  it('väljer Tipsmedoss senaste artikel även när den ligger under fotboll', () => { const html = '<a href="/2026/fotboll/stryktipset-29-8-analys-spelforslag/">Stryktipset 29/8: Analys</a><a href="/2026/stryktipsforslag/stryktipset-22-8-analys/">Stryktipset 22/8: Analys</a>'; expect(findCurrentArticle(html, 'https://tipsmedoss.com/category/stryktipsforslag/')).toContain('/fotboll/stryktipset-29-8-'); });
 });
