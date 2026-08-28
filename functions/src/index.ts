@@ -11,8 +11,8 @@ import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklar
 import { validatePicks } from './scrapers/parser';
 import { fetchSvenskaSpelCoupon } from './scrapers/svenskaspel';
 import { enrichCouponWithXStats } from './scrapers/playmaker';
-import { parseUnderstreckat, UNDERSTRECKAT_INDEX } from './scrapers/understreckat';
 import { parseTipsmedoss, TIPSMEDOSS_API, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
+import { parseTipper, TIPPER_INDEX } from './scrapers/tipper';
 import { addTeamAlias, sameTeam } from './normalization/teams';
 import { buildOfficialOnlyRound, officialCouponFingerprint, omitUndefined, planOfficialCoupon } from './persistence';
 import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
@@ -26,7 +26,7 @@ type Scraper = { id: SourceId; indexUrl: string; parse: (html: string, url: stri
 const scrapers: Scraper[] = [
   { id: 'rekatochklart', indexUrl: REKATOCHKLART_INDEX, parse: parseRekatochklart },
   { id: 'bettingstugan', indexUrl: BETTINGSTUGAN_INDEX, parse: parseBettingstugan },
-  { id: 'understreckat', indexUrl: UNDERSTRECKAT_INDEX, parse: parseUnderstreckat },
+  { id: 'tipper', indexUrl: TIPPER_INDEX, parse: parseTipper },
   { id: 'tipsmedoss', indexUrl: TIPSMEDOSS_INDEX, parse: parseTipsmedoss },
 ];
 
@@ -175,11 +175,6 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
     if (result.status === 'fulfilled') { picks.push(...result.value); statuses[id] = { status: 'OK', updatedAt: now, lastSuccessfulUpdate: now, count: result.value.length }; }
     else { statuses[id] = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.[id]?.lastSuccessfulUpdate, message: result.reason instanceof Error ? result.reason.message : String(result.reason) }; }
   });
-  if (statuses.understreckat?.status === 'OK') {
-    const corePicks = picks.filter((pick) => pick.source !== 'understreckat'); const extraPicks = picks.filter((pick) => pick.source === 'understreckat');
-    const mismatch = extraPicks.find((pick) => { const core = corePicks.find((item) => item.matchNumber === pick.matchNumber); return !core || !sameTeam(core.homeTeam, pick.homeTeam) || !sameTeam(core.awayTeam, pick.awayTeam); });
-    if (mismatch) { statuses.understreckat = { status:'ERROR', updatedAt:now, lastSuccessfulUpdate:previous?.sources?.understreckat?.lastSuccessfulUpdate, message:`Aktuell analys matchar inte kupongen (match ${mismatch.matchNumber})` }; picks.splice(0, picks.length, ...corePicks); }
-  }
   const aliasCandidates: Array<{ source: SourceId; matchNumber: number; alias: string; canonical: string }> = [];
   if (officialResult.status === 'fulfilled') {
     for (const source of scrapers.map((item) => item.id)) {

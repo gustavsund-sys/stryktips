@@ -4,7 +4,7 @@ import type { SourceStatus } from '../types';
 const experts = [
   ['rekatochklart', 'Rekatochklart'],
   ['bettingstugan', 'Bettingstugan'],
-  ['understreckat', 'Understreckat'],
+  ['tipper', 'Tipper'],
   ['tipsmedoss', 'Tipsmedoss'],
 ] as const;
 

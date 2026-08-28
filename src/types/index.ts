@@ -1,7 +1,7 @@
 export type Sign = '1' | 'X' | '2';
 export type Tip = '1' | 'X' | '2' | '1X' | 'X2' | '12' | '1X2';
 export type Classification = 'strong' | 'consensus' | 'disagreement' | 'coverage';
-export interface Ballot { expertId: string; expert: string; source: 'rekatochklart' | 'bettingstugan' | 'understreckat' | 'tipsmedoss'; sourceUrl: string; tip: Tip; }
+export interface Ballot { expertId: string; expert: string; source: 'rekatochklart' | 'bettingstugan' | 'understreckat' | 'tipsmedoss' | 'tipper'; sourceUrl: string; tip: Tip; }
 export type XStatsMetricName = 'xp' | 'points' | 'xpPointsDiff' | 'expectedTablePosition' | 'tablePosition' | 'xG' | 'xGC' | 'averageScored' | 'averageConceded' | 'averageScoredBetween' | 'averageScoredHomeAndAway';
 export interface XStatsPeriod { homeTeam: string; awayTeam: string; metrics: Partial<Record<XStatsMetricName, { home: number; away: number }>>; }
 export interface XStatsData { matchId: string; source: 'PlaymakerAI'; sourceUrl: string; updatedAt: string; entireSeason?: XStatsPeriod; lastFiveGames?: XStatsPeriod; }

@@ -6,6 +6,7 @@ import { parseRekatochklart } from '../scrapers/rekatochklart';
 import { validatePicks } from '../scrapers/parser';
 import { parseUnderstreckat } from '../scrapers/understreckat';
 import { parseTipsmedoss } from '../scrapers/tipsmedoss';
+import { parseTipper } from '../scrapers/tipper';
 import { fetchLatestWordpressArticle, findCurrentArticle } from '../scrapers/fetch';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
@@ -20,6 +21,11 @@ describe('källparser', () => {
   it('vägrar publicera en ofullständig kupong', () => { const picks = parseRekatochklart('<article><p>1. A - B 1</p></article>', 'https://example.test'); expect(() => validatePicks(picks)).toThrow(/1\/13/); });
   it('läser Understreckats publicerade system som en separat expert', () => { const picks = parseUnderstreckat(fixture('understreckat.html'), 'https://understreckat.se/stryktipset/v33-2026'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'1X', expert:'Understreckat / Redaktionen', source:'understreckat' }); });
   it('låter inte sidmetadata följa med i Understreckats expertnamn', () => { const html = fixture('understreckat.html').replace('Av Redaktionen · 5 min läsning', 'Av RedaktionenMatcher13Systemet768 rader'); const picks = parseUnderstreckat(html, 'https://understreckat.se/stryktipset/v34-2026'); expect(picks[0].expert).toBe('Understreckat / Redaktionen'); });
+  it('läser endast Tippers första primära expertsystem', () => {
+    const rows = Array.from({ length: 13 }, (_, index) => `${index + 1}. Hemma ${index + 1} - Borta ${index + 1} ${index === 0 ? '12' : '1X'}`).join(' ');
+    const html = `<main><p><strong>Expert: Jonas Amrouni</strong></p><h2>Systemförslag</h2><p>${rows}</p><p><strong>Expert: Victors Tips</strong></p><h2>Systemförslag</h2><p>1. Fel - Källa 2</p></main>`;
+    const picks = parseTipper(html, 'https://tipper.se/stryktipset/2026-08-29'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'12', expert:'Tipper / Jonas Amrouni', source:'tipper' }); expect(picks.some((pick) => pick.homeTeam === 'Fel')).toBe(false);
+  });
   it('läser Tipsmedoss veckoförslag och normaliserar tecken med mellanrum', () => { const picks = parseTipsmedoss(fixture('tipsmedoss.html'), 'https://tipsmedoss.com/2026/stryktipsforslag/stryktipset-22-8/'); expect(() => validatePicks(picks)).not.toThrow(); expect(picks).toHaveLength(13); expect(picks[0]).toMatchObject({ tip:'12', expert:'Tipsmedoss / Kamil Sytniowski', source:'tipsmedoss' }); });
   it('väljer Tipsmedoss senaste artikel även när den ligger under fotboll', () => { const html = '<a href="/2026/fotboll/stryktipset-29-8-analys-spelforslag/">Stryktipset 29/8: Analys</a><a href="/2026/stryktipsforslag/stryktipset-22-8-analys/">Stryktipset 22/8: Analys</a>'; expect(findCurrentArticle(html, 'https://tipsmedoss.com/category/stryktipsforslag/')).toContain('/fotboll/stryktipset-29-8-'); });
   it('hämtar senaste Stryktipset-artikeln via WordPress API och hoppar över Europatipset', async () => {

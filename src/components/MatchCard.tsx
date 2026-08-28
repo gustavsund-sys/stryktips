@@ -1,7 +1,7 @@
 import { BarChart3, ExternalLink, Gem } from 'lucide-react';
 import { SupportBars } from './SupportBars'; import { PublicDistribution } from './PublicDistribution'; import type { Match } from '../types';
 const labels = { strong: ['🔥', 'Stark konsensus'], consensus: ['✓', 'Konsensus'], disagreement: ['!', 'Experterna är oense'], coverage: ['◈', 'Garderingskandidat'] } as const;
-const sourceLabel = { rekatochklart: 'Rekatochklart', bettingstugan: 'Bettingstugan', understreckat: 'Understreckat', tipsmedoss: 'Tipsmedoss' } as const;
+const sourceLabel = { rekatochklart: 'Rekatochklart', bettingstugan: 'Bettingstugan', understreckat: 'Understreckat', tipsmedoss: 'Tipsmedoss', tipper: 'Tipper' } as const;
 export function MatchCard({ match }: { match: Match }) {
   const label = labels[match.classification];
   const awaitingExperts = match.ballots.length === 0;
