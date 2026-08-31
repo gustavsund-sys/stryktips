@@ -27,7 +27,7 @@ async function createAccessToken(json) {
   const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({ iss: account.client_email, scope: 'https://www.googleapis.com/auth/datastore', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 })}`;
   const signer = createSign('RSA-SHA256'); signer.update(unsigned); signer.end();
   const assertion = `${unsigned}.${signer.sign(account.private_key, 'base64url')}`;
-  const tokenResponse = await fetchWithRetry('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth2:grant-type:jwt-bearer', assertion }) });
+  const tokenResponse = await fetchWithRetry('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
   if (!tokenResponse.ok) throw new Error(`GOOGLE_TOKEN_${tokenResponse.status}`);
   return (await tokenResponse.json()).access_token;
 }
