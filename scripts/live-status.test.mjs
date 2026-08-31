@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fromFirestoreDocument, mergeLiveStatus, normalizeMatchPhase, parseLiveDraw, resolveDrawNumber, toFirestoreValue } from './live-status.mjs';
+import { fromFirestoreDocument, mergeLiveStatus, normalizeMatchPhase, parseLiveDraw, resolveDrawNumber, stockholmTime, toFirestoreValue } from './live-status.mjs';
 
 const event = (eventNumber, status, result = []) => ({ eventNumber, cancelled: false, match: { matchStart: '2026-08-22T16:00:00+02:00', status, statusId: status === 'Slut' ? 31 : 0, sportEventStatus: status === 'Slut' ? 'Ended' : status === 'Inte startat' ? 'NotStarted' : 'InProgress', participants: [{ type: 'home', name: `H${eventNumber}` }, { type: 'away', name: `B${eventNumber}` }], result } });
 const payload = (events) => ({ draw: { drawNumber: 99, regCloseTime: '2026-08-22T15:59:00+02:00', drawEvents: events } });
@@ -66,4 +66,12 @@ test('läser tillbaka Firestore-formatet utan dataförlust', () => {
   const value = { phase: 'active', consecutiveFailures: 2, active: true, matches: [{ matchNumber: 1 }] };
   const document = { fields: Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toFirestoreValue(item)])) };
   assert.deepEqual(fromFirestoreDocument(document), value);
+});
+
+test('startar tät livebevakning klockan 15 svensk tid', () => {
+  assert.equal(stockholmTime('2026-08-22', 15).toISOString(), '2026-08-22T13:00:00.000Z');
+  assert.equal(stockholmTime('2026-12-05', 15).toISOString(), '2026-12-05T14:00:00.000Z');
+  const events = Array.from({ length: 13 }, (_, i) => event(i + 1, 'Inte startat'));
+  assert.equal(parseLiveDraw(payload(events), new Date('2026-08-22T12:59:59Z')).pollRecommended, false);
+  assert.equal(parseLiveDraw(payload(events), new Date('2026-08-22T13:00:00Z')).pollRecommended, true);
 });

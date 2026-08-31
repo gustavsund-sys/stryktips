@@ -7,8 +7,8 @@ on:
     - cron: '17 6-11 * * 4'
     # Två oberoende starter per timme, bort från hel timme då GitHub har högst
     # belastning. En startad session uppdaterar var femte minut i högst 25 min.
-    - cron: '17,47 12-23 * * 6'
-    - cron: '17,47 0-1 * * 0'
+    - cron: '2,32 13-23 * * 6'
+    - cron: '2,32 0-1 * * 0'
 
 permissions:
   contents: read
@@ -28,7 +28,7 @@ jobs:
       - name: Fetch and publish live status
         run: |
           attempts=1
-          if [ "$SCHEDULE" = "17,47 12-23 * * 6" ] || [ "$SCHEDULE" = "17,47 0-1 * * 0" ]; then
+          if [ "$SCHEDULE" = "2,32 13-23 * * 6" ] || [ "$SCHEDULE" = "2,32 0-1 * * 0" ]; then
             attempts=6
           fi
           successes=0

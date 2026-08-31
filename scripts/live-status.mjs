@@ -19,6 +19,14 @@ export function resolveDrawNumber(current, archived) {
 
 const signFor = (home, away) => home > away ? '1' : home === away ? 'X' : '2';
 
+export function stockholmTime(roundDate, hour) {
+  const [year, month, day] = String(roundDate).split('-').map(Number);
+  const noonUtc = new Date(Date.UTC(year, month - 1, day, 12));
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(noonUtc).filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]));
+  const offset = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour) - noonUtc.getTime();
+  return new Date(Date.UTC(year, month - 1, day, hour) - offset);
+}
+
 const statusText = (match) => `${match?.sportEventStatus ?? ''} ${match?.status ?? ''}`.toLowerCase();
 
 export function normalizeMatchPhase(match, hasScore = false) {
@@ -95,7 +103,8 @@ export function parseLiveDraw(payload, now = new Date()) {
   const firstStart = Math.min(...starts); const started = matches.some((match) => ['InProgress','Ended','Cancelled'].includes(match.sportEventStatus)) || now.getTime() >= firstStart;
   const complete = matches.every((match) => ['Ended','Cancelled'].includes(match.sportEventStatus));
   const phase = complete ? 'complete' : matches.some((match) => match.sportEventStatus === 'InProgress') ? 'active' : started ? 'between' : 'scheduled';
-  const pollRecommended = !complete && now.getTime() >= firstStart - 15 * 60_000;
+  const liveStart = stockholmTime(String(draw.regCloseTime).slice(0, 10), 15).getTime();
+  const pollRecommended = !complete && now.getTime() >= liveStart;
   return { roundDate: String(draw.regCloseTime).slice(0, 10), drawNumber: Number(draw.drawNumber), updatedAt: now.toISOString(), lastAttemptAt: now.toISOString(), lastSuccessAt: now.toISOString(), nextExpectedUpdateAt: new Date(now.getTime() + (pollRecommended ? 5 : 60) * 60_000).toISOString(), consecutiveFailures: 0, schemaVersion: 2, phase, pollRecommended, started, active: phase === 'active', complete, matches };
 }
 
