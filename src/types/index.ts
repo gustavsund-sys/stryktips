@@ -33,4 +33,6 @@ export interface LiveMatch {
 }
 export interface LiveStatus {
   roundDate: string; drawNumber: number; updatedAt: string; started: boolean; active: boolean; complete: boolean; matches: LiveMatch[];
+  phase?: 'scheduled' | 'active' | 'between' | 'complete' | 'degraded'; pollRecommended?: boolean;
+  lastAttemptAt?: string; lastSuccessAt?: string; nextExpectedUpdateAt?: string; consecutiveFailures?: number; lastError?: string; schemaVersion?: number;
 }

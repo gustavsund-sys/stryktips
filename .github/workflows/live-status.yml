@@ -4,24 +4,23 @@ on:
   workflow_dispatch:
   schedule:
     # Skapa/uppdatera nedräkningen när den nya kupongen släpps på torsdagen.
-    - cron: '0 6-11 * * 4'
-    # Starta en timmesbevakning varje hel timme. När GitHub väl har startat
-    # jobbet sker uppdateringen lokalt var femte minut och tappas inte mellan
-    # enskilda cron-körningar.
-    - cron: '0 12-23 * * 6'
-    - cron: '0 0-1 * * 0'
+    - cron: '17 6-11 * * 4'
+    # Två oberoende starter per timme, bort från hel timme då GitHub har högst
+    # belastning. En startad session uppdaterar var femte minut i högst 25 min.
+    - cron: '17,47 12-23 * * 6'
+    - cron: '17,47 0-1 * * 0'
 
 permissions:
   contents: read
 
 concurrency:
   group: stryktipset-live-status
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   update-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
       - name: Test live parser
@@ -29,13 +28,19 @@ jobs:
       - name: Fetch and publish live status
         run: |
           attempts=1
-          if [ "$SCHEDULE" = "0 12-23 * * 6" ] || [ "$SCHEDULE" = "0 0-1 * * 0" ]; then
-            attempts=12
+          if [ "$SCHEDULE" = "17,47 12-23 * * 6" ] || [ "$SCHEDULE" = "17,47 0-1 * * 0" ]; then
+            attempts=6
           fi
           successes=0
           for attempt in $(seq 1 "$attempts"); do
-            if node scripts/update-live-status.mjs; then
+            if output="$(node scripts/update-live-status.mjs)"; then
+              echo "$output"
               successes=$((successes + 1))
+              poll="$(echo "$output" | tail -n 1 | jq -r '.pollRecommended // false')"
+              if [ "$poll" != "true" ]; then
+                echo "Omgången behöver ingen tät livebevakning ännu."
+                break
+              fi
             else
               echo "Liveförsök $attempt misslyckades; nästa försök görs om fem minuter."
             fi

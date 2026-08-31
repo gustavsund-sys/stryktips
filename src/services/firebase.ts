@@ -24,9 +24,9 @@ export async function getLatestRunStatus(): Promise<LatestRunStatus | undefined>
   } catch { return undefined; }
 }
 
-export function subscribeLiveStatus(onChange: (status?: LiveStatus) => void): () => void {
+export function subscribeLiveStatus(onChange: (status?: LiveStatus) => void, onError?: () => void): () => void {
   if (!db) return () => undefined;
-  return onSnapshot(doc(db, 'liveStatus', 'current'), (snapshot) => onChange(snapshot.exists() ? snapshot.data() as LiveStatus : undefined), () => onChange(undefined));
+  return onSnapshot(doc(db, 'liveStatus', 'current'), (snapshot) => onChange(snapshot.exists() ? snapshot.data() as LiveStatus : undefined), () => onError?.());
 }
 
 export async function getExpertStats(): Promise<ExpertStats | undefined> {

@@ -46,3 +46,4 @@
 @media(max-width:620px){.countdown-matches{grid-auto-flow:row;grid-template-columns:1fr;grid-template-rows:none}.countdown-matches>div{padding:6px 0}.countdown-matches strong{font-size:10px}}
 @media(min-width:621px){.countdown-matches strong{font-size:12px}.countdown-matches time{font-size:10px}.countdown-matches span{font-size:11px}}
 .result-modal{color:var(--ink)}
+.live-freshness.stale{color:#ffd38a}.live-freshness.critical{color:#ffad95;font-weight:700}
