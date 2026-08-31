@@ -25,6 +25,7 @@ export interface ClaimRound {
   base?: 'expert' | 'chaparral'; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
   draftBase?: 'expert' | 'chaparral'; draftTips?: Tip[]; draftRows?: number; draftSavedAt?: { toDate: () => Date };
   lockAt?: { toDate: () => Date }; result?: SystemResult; officialResult?: OfficialResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
+  round?: Round;
 }
 export interface LiveMatch {
   matchNumber: number; homeTeam: string; awayTeam: string; matchStart: string; status: string; statusId: number;

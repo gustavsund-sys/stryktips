@@ -50,6 +50,15 @@ function ResultCelebration({ claim, claims, round, live, onClose }: { claim: Cla
   </section></div>;
 }
 
+export function PreviousResultButton({ claims, live }: { claims: ClaimRound[]; live?: LiveStatus }) {
+  const [open, setOpen] = useState(false);
+  const latest = claims.find((claim) => claim.status === 'settled' && claim.result && claim.round);
+  useEffect(() => { if (!open) return; const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [open]);
+  if (!latest?.round) return null;
+  const date = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'long' }).format(new Date(`${latest.roundDate}T12:00:00`));
+  return <><button className="previous-result-button" type="button" onClick={() => setOpen(true)}><Trophy size={17}/> Visa resultat för omgång {date}</button>{open && <ResultCelebration claim={latest} claims={claims} round={latest.round} live={live} onClose={() => setOpen(false)}/>}</>;
+}
+
 export function ClaimPanel({ round, claim, claims, live, onChanged }: { round: Round; claim?: ClaimRound; claims: ClaimRound[]; live?: LiveStatus; onChanged: () => Promise<void> }) {
   const [participant, setParticipant] = useState<Participant>('Jocke'); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [unlockOpen, setUnlockOpen] = useState(false);
