@@ -5,10 +5,11 @@ on:
   schedule:
     # Skapa/uppdatera nedräkningen när den nya kupongen släpps på torsdagen.
     - cron: '0 6-11 * * 4'
-    # Var femte minut på lördag eftermiddag/kväll. Det breda UTC-fönstret
-    # täcker både svensk sommar- och vintertid.
-    - cron: '*/5 12-23 * * 6'
-    - cron: '*/5 0-1 * * 0'
+    # Starta en timmesbevakning varje hel timme. När GitHub väl har startat
+    # jobbet sker uppdateringen lokalt var femte minut och tappas inte mellan
+    # enskilda cron-körningar.
+    - cron: '0 12-23 * * 6'
+    - cron: '0 0-1 * * 0'
 
 permissions:
   contents: read
@@ -20,13 +21,31 @@ concurrency:
 jobs:
   update-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Test live parser
         run: node --test scripts/live-status.test.mjs
       - name: Fetch and publish live status
-        run: node scripts/update-live-status.mjs
+        run: |
+          attempts=1
+          if [ "$SCHEDULE" = "0 12-23 * * 6" ] || [ "$SCHEDULE" = "0 0-1 * * 0" ]; then
+            attempts=12
+          fi
+          successes=0
+          for attempt in $(seq 1 "$attempts"); do
+            if node scripts/update-live-status.mjs; then
+              successes=$((successes + 1))
+            else
+              echo "Liveförsök $attempt misslyckades; nästa försök görs om fem minuter."
+            fi
+            if [ "$attempt" -lt "$attempts" ]; then sleep 300; fi
+          done
+          if [ "$successes" -eq 0 ]; then
+            echo "Samtliga liveförsök misslyckades."
+            exit 1
+          fi
         env:
+          SCHEDULE: ${{ github.event.schedule }}
           FIREBASE_PROJECT_ID: stryktipset-46f61
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

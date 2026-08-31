@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseLiveDraw } from './live-status.mjs';
+import { parseLiveDraw, resolveDrawNumber } from './live-status.mjs';
 
 const event = (eventNumber, status, result = []) => ({ eventNumber, cancelled: false, match: { matchStart: '2026-08-22T16:00:00+02:00', status, statusId: status === 'Slut' ? 31 : 0, sportEventStatus: status === 'Slut' ? 'Ended' : status === 'Inte startat' ? 'NotStarted' : 'InProgress', participants: [{ type: 'home', name: `H${eventNumber}` }, { type: 'away', name: `B${eventNumber}` }], result } });
 const payload = (events) => ({ draw: { drawNumber: 99, regCloseTime: '2026-08-22T15:59:00+02:00', drawEvents: events } });
+
+test('hittar omgångsnumret även när current har tappat fältet', () => {
+  assert.equal(resolveDrawNumber({ fields: { officialRoundId: { stringValue: 'draw-4968' } } }), 4968);
+  assert.equal(resolveDrawNumber({ fields: {} }, { fields: { drawNumber: { integerValue: '4968' } } }), 4968);
+});
 
 test('markerar kommande omgång före första avspark', () => {
   const live = parseLiveDraw(payload(Array.from({ length: 13 }, (_, i) => event(i + 1, 'Inte startat'))), new Date('2026-08-22T13:59:00Z'));

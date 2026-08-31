@@ -14,7 +14,7 @@ import { enrichCouponWithXStats } from './scrapers/playmaker';
 import { parseTipsmedoss, TIPSMEDOSS_API, TIPSMEDOSS_INDEX } from './scrapers/tipsmedoss';
 import { parseTipper, TIPPER_INDEX } from './scrapers/tipper';
 import { addTeamAlias, sameTeam } from './normalization/teams';
-import { buildOfficialOnlyRound, officialCouponFingerprint, omitUndefined, planOfficialCoupon } from './persistence';
+import { buildOfficialOnlyRound, officialCouponFingerprint, omitUndefined, planOfficialCoupon, preserveOfficialCoupon, registrationHasClosed } from './persistence';
 import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
 import { SIGNS, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 
@@ -90,7 +90,7 @@ function stockholmDate(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-export async function discoverOfficialRound(): Promise<{ change: 'new' | 'updated' | 'unchanged'; roundDate: string; officialRoundId: string }> {
+export async function discoverOfficialRound(): Promise<{ change: 'new' | 'updated' | 'unchanged' | 'waiting'; roundDate: string; officialRoundId?: string }> {
   const checkedAt = new Date().toISOString();
   try {
     const xStatsResult = await enrichCouponWithXStats(await fetchSvenskaSpelCoupon());
@@ -120,6 +120,12 @@ export async function discoverOfficialRound(): Promise<{ change: 'new' | 'update
     return { change, roundDate: coupon.roundDate, officialRoundId: coupon.officialRoundId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (message === 'API_ERROR: aktuell Stryktipsomgång saknas') {
+      const log = { kind: 'officialCouponCheck', at: checkedAt, outcome: 'waiting', message, createdAt: FieldValue.serverTimestamp() };
+      const batch = db.batch(); batch.set(db.doc('systemStatus/officialCoupon'), log); await batch.commit();
+      logger.info('Ingen öppen Stryktipsomgång ännu; befintliga data behålls', { at: checkedAt });
+      return { change: 'waiting', roundDate: stockholmDate() };
+    }
     const log = { kind: 'officialCouponCheck', at: checkedAt, outcome: 'failed', message, createdAt: FieldValue.serverTimestamp() };
     const batch = db.batch(); batch.set(db.collection('scrapeRuns').doc(), log); batch.set(db.doc('systemStatus/officialCoupon'), log); await batch.commit();
     logger.error('Kontroll av officiell omgång misslyckades; befintliga data behålls', { at: checkedAt, message });
@@ -166,6 +172,10 @@ async function scrape(source: Scraper): Promise<ExpertPick[]> {
 export async function updateCurrentRound(): Promise<{ published: boolean; roundDate: string }> {
   const now = new Date().toISOString(); const previousSnap = await db.doc('stryktipset/current').get();
   const previous = previousSnap.data() as RoundDocument | undefined;
+  if (registrationHasClosed(previous, new Date(now))) {
+    logger.info('Spelstopp har passerat; befintlig kupong behålls', { roundDate: previous?.roundDate, regCloseTime: previous?.regCloseTime });
+    return { published: false, roundDate: previous?.roundDate ?? stockholmDate() };
+  }
   const approvedAliases = await db.collection('teamAliases').get();
   approvedAliases.forEach((snapshot) => { const alias = snapshot.data(); if (typeof alias.alias === 'string' && typeof alias.canonical === 'string') addTeamAlias(alias.alias, alias.canonical); });
   const [expertResults, officialResult] = await Promise.all([Promise.allSettled(scrapers.map(scrape)), fetchSvenskaSpelCoupon().then(enrichCouponWithXStats).then((result) => ({ status: 'fulfilled' as const, value: result.coupon })).catch((reason) => ({ status: 'rejected' as const, reason }))]);
@@ -212,7 +222,8 @@ export async function updateCurrentRound(): Promise<{ published: boolean; roundD
   } else statuses.svenskaspel = { status: 'ERROR', updatedAt: now, lastSuccessfulUpdate: previous?.sources?.svenskaspel?.lastSuccessfulUpdate, message: officialResult.reason instanceof Error ? officialResult.reason.message : String(officialResult.reason) };
   if (statuses.svenskaspel.status === 'ERROR' && previous) matches = matches.map((match) => { const old = previous.matches.find((item) => item.matchNumber === match.matchNumber && sameTeam(item.homeTeam, match.homeTeam) && sameTeam(item.awayTeam, match.awayTeam)); return old?.publicDistribution ? { ...match, publicDistribution: old.publicDistribution, odds: old.odds, xStats: old.xStats, expertDeviation: old.expertDeviation } : match; });
   const roundDate = process.env.ROUND_DATE || officialCoupon?.roundDate || previous?.roundDate || stockholmDate();
-  const document: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', officialOnly: false, matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches), ...(officialCoupon ? { officialRoundId: officialCoupon.officialRoundId, drawNumber: officialCoupon.drawNumber, regCloseTime: officialCoupon.regCloseTime, officialMatches: officialCoupon.matches, officialFingerprint: officialCouponFingerprint(officialCoupon), xStatsCoverage: officialCoupon.matches.filter((match) => match.xStats).length } : {}) };
+  const nextDocument: RoundDocument = { roundDate, updatedAt: now, status: Object.values(statuses).every((source) => source.status === 'OK') ? 'ok' : 'partial', officialOnly: false, matches, sources: statuses, expertCount: new Set(picks.map((pick) => `${pick.source}:${pick.expert}`)).size, systemRows: calculateRows(matches), publicDistribution: null, highChaparral: buildHighChaparral(matches), ...(officialCoupon ? { officialRoundId: officialCoupon.officialRoundId, drawNumber: officialCoupon.drawNumber, regCloseTime: officialCoupon.regCloseTime, officialMatches: officialCoupon.matches, officialFingerprint: officialCouponFingerprint(officialCoupon), xStatsCoverage: officialCoupon.matches.filter((match) => match.xStats).length } : {}) };
+  const document = officialCoupon ? nextDocument : preserveOfficialCoupon(nextDocument, previous);
   const firestoreDocument = omitUndefined(document);
   const batch = db.batch(); batch.set(db.doc('stryktipset/current'), firestoreDocument); batch.set(db.doc(`rounds/${roundDate}`), firestoreDocument, { merge: true }); batch.set(db.doc('aliasReviews/current'), { status: 'none', updatedAt: now, candidates: [] }); batch.set(db.doc('systemStatus/latest'), { at: now, published: true, roundDate, statuses: omitUndefined(statuses) }); batch.set(db.collection('scrapeRuns').doc(), { at: now, statuses: omitUndefined(statuses), published: true, roundDate, createdAt: FieldValue.serverTimestamp() }); await batch.commit();
   logger.info('Kupong publicerad', { roundDate, matches: matches.length, experts: document.expertCount }); return { published: true, roundDate };

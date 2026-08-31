@@ -27,6 +27,25 @@ export interface OfficialCouponPlan {
   data?: Record<string, unknown>;
 }
 
+export function registrationHasClosed(round: { regCloseTime?: string } | undefined, now = new Date()): boolean {
+  const closesAt = Date.parse(round?.regCloseTime ?? '');
+  return Number.isFinite(closesAt) && now.getTime() >= closesAt;
+}
+
+type OfficialIdentity = {
+  officialRoundId?: string; drawNumber?: number; regCloseTime?: string;
+  officialMatches?: OfficialMatch[]; officialFingerprint?: string;
+};
+
+export function preserveOfficialCoupon<T extends object>(next: T, previous: OfficialIdentity | undefined): T {
+  if (!previous) return next;
+  const preserved = { ...next };
+  for (const key of ['officialRoundId', 'drawNumber', 'regCloseTime', 'officialMatches', 'officialFingerprint'] as const) {
+    if (previous[key] !== undefined) Object.assign(preserved, { [key]: previous[key] });
+  }
+  return preserved;
+}
+
 export function officialCouponFingerprint(coupon: OfficialCoupon): string {
   return createHash('sha256').update(JSON.stringify({
     officialRoundId: coupon.officialRoundId,

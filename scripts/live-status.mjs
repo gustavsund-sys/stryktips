@@ -1,5 +1,22 @@
 export const LIVE_API_BASE = 'https://api.spela.svenskaspel.se/draw/1/stryktipset/draws';
 
+const firestoreInteger = (document, field) => {
+  const value = Number(document?.fields?.[field]?.integerValue);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+};
+const drawNumberFromId = (document) => {
+  const value = Number(String(document?.fields?.officialRoundId?.stringValue ?? '').match(/^draw-(\d+)$/)?.[1]);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+};
+
+export function resolveDrawNumber(current, archived) {
+  const value = firestoreInteger(current, 'drawNumber')
+    ?? drawNumberFromId(current)
+    ?? firestoreInteger(archived, 'drawNumber')
+    ?? drawNumberFromId(archived);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 const signFor = (home, away) => home > away ? '1' : home === away ? 'X' : '2';
 
 export function parseLiveDraw(payload, now = new Date()) {

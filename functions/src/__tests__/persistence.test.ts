@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildOfficialOnlyRound, omitUndefined, planOfficialCoupon } from '../persistence';
+import { buildOfficialOnlyRound, omitUndefined, planOfficialCoupon, preserveOfficialCoupon, registrationHasClosed } from '../persistence';
 import type { OfficialCoupon } from '../types';
 
 describe('Firestore persistence', () => {
+  it('skyddar en stängd omgång och bevarar dess officiella identitet vid API-fel', () => {
+    expect(registrationHasClosed({ regCloseTime: '2026-08-29T15:59:00+02:00' }, new Date('2026-08-29T14:00:00Z'))).toBe(true);
+    expect(registrationHasClosed({ regCloseTime: '2026-08-29T15:59:00+02:00' }, new Date('2026-08-29T13:00:00Z'))).toBe(false);
+    expect(preserveOfficialCoupon({ roundDate: '2026-08-29' }, { drawNumber: 4968, officialRoundId: 'draw-4968', regCloseTime: '2026-08-29T15:59:00+02:00' })).toEqual({ roundDate: '2026-08-29', drawNumber: 4968, officialRoundId: 'draw-4968', regCloseTime: '2026-08-29T15:59:00+02:00' });
+  });
   it('utelämnar undefined rekursivt utan att ändra giltiga värden', () => {
     expect(omitUndefined({
       statuses: {

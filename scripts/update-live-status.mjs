@@ -1,4 +1,4 @@
-import { LIVE_API_BASE, parseLiveDraw, toFirestoreValue } from './live-status.mjs';
+import { LIVE_API_BASE, parseLiveDraw, resolveDrawNumber, toFirestoreValue } from './live-status.mjs';
 import { createSign } from 'node:crypto';
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -21,7 +21,13 @@ const roundUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/data
 const roundResponse = await fetch(roundUrl, { headers });
 if (!roundResponse.ok) throw new Error(`FIRESTORE_ROUND_READ_${roundResponse.status}`);
 const round = await roundResponse.json();
-const drawNumber = round?.fields?.drawNumber?.integerValue;
+const roundDate = round?.fields?.roundDate?.stringValue;
+let archived;
+if (roundDate) {
+  const archivedResponse = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/rounds/${encodeURIComponent(roundDate)}`, { headers });
+  if (archivedResponse.ok) archived = await archivedResponse.json();
+}
+const drawNumber = resolveDrawNumber(round, archived);
 if (!drawNumber) throw new Error('CURRENT_DRAW_NOT_FOUND');
 
 const response = await fetch(`${LIVE_API_BASE}/${drawNumber}`, { headers: { accept: 'application/json' } });
