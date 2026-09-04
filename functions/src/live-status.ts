@@ -116,7 +116,13 @@ export function shouldFetchLive(round: UnknownRecord | undefined, previous: Live
   if (!previous || previous.drawNumber !== drawNumber || previous.roundDate !== round?.roundDate) return true;
   if (previous.complete) return false;
   const firstStart = firstMatchStart(previous);
-  if (round?.roundDate === stockholmDate(now) && firstStart !== undefined) return now.getTime() >= firstStart - 60 * 60_000;
+  if (round?.roundDate === stockholmDate(now) && firstStart !== undefined) {
+    if (now.getTime() < firstStart - 60 * 60_000) return false;
+    const lastAttempt = Date.parse(previous.lastAttemptAt ?? previous.lastSuccessAt ?? previous.updatedAt);
+    const oneMinuteMode = previous.active || (!previous.started && now.getTime() >= firstStart);
+    const minimumInterval = oneMinuteMode ? 55_000 : 4 * 60_000 + 30_000;
+    return !Number.isFinite(lastAttempt) || now.getTime() - lastAttempt >= minimumInterval;
+  }
   return previous.active || previous.started || previous.phase === 'between';
 }
 

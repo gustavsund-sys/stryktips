@@ -242,9 +242,9 @@ export const manualUpdate = onRequest({ region: 'europe-west1', invoker: 'privat
   try { response.json(await updateCurrentRound()); } catch (error) { logger.error(error); response.status(500).json({ error: error instanceof Error ? error.message : 'Okänt fel' }); }
 });
 
-// Firestore är navet för livevyn. Funktionen kör billigt var femte minut, men
-// hoppar över Svenska Spels API utanför den aktuella omgångens bevakningsfönster.
-export const scheduledLiveUpdate = onSchedule({ schedule: 'every 5 minutes', timeZone: 'Europe/Stockholm', region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1, retryCount: 1 }, async () => {
+// Firestore är navet för livevyn. Funktionen väcks varje minut, men hämtar
+// adaptivt och hoppar över Svenska Spels API utanför bevakningsfönstret.
+export const scheduledLiveUpdate = onSchedule({ schedule: '* * * * *', timeZone: 'Europe/Stockholm', region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1, retryCount: 1 }, async () => {
   const result = await refreshLiveStatus(db);
   logger.info(result.outcome === 'updated' ? 'Live-resultat publicerat till Firestore' : 'Ingen livehämtning behövs', result);
 });

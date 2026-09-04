@@ -18,6 +18,18 @@ describe('Firebase live status', () => {
     expect(shouldFetchLive(round, live, new Date('2026-09-05T13:00:00Z'))).toBe(true);
   });
 
+  it('hämtar var femte minut före start och varje minut när spel pågår', () => {
+    const round = { roundDate: '2026-09-05', drawNumber: 4969 };
+    const prepared = parseLiveDraw(payload(), new Date('2026-09-05T13:00:00Z'));
+    expect(shouldFetchLive(round, prepared, new Date('2026-09-05T13:04:00Z'))).toBe(false);
+    expect(shouldFetchLive(round, prepared, new Date('2026-09-05T13:05:00Z'))).toBe(true);
+    const events = Array.from({ length: 13 }, (_, index) => event(index + 1));
+    events[0] = event(1, 'Pågår', [{ sportEventResultType: 'Current', home: 0, away: 0 }]);
+    const active = parseLiveDraw(payload(events), new Date('2026-09-05T14:00:00Z'));
+    expect(shouldFetchLive(round, active, new Date('2026-09-05T14:00:30Z'))).toBe(false);
+    expect(shouldFetchLive(round, active, new Date('2026-09-05T14:01:00Z'))).toBe(true);
+  });
+
   it('låter inte ett avslutat resultat gå bakåt', () => {
     const ended = Array.from({ length: 13 }, (_, index) => event(index + 1, 'Slut', [{ sportEventResultType: 'Fulltime', home: 2, away: 1 }]));
     const previous = parseLiveDraw(payload(ended), new Date('2026-09-05T20:00:00Z'));
