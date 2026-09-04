@@ -28,8 +28,8 @@ export function LiveView({ live, claim, roundDate, connectionError = false }: { 
   const statusOrder = { InProgress: 0, NotStarted: 1, Unknown: 2, Ended: 3, Cancelled: 4 } as Record<string, number>;
   const displayMatches = live.active ? [...live.matches].sort((a, b) => (statusOrder[a.sportEventStatus] ?? 2) - (statusOrder[b.sportEventStatus] ?? 2) || a.matchNumber - b.matchNumber) : live.matches;
   return <section className={`live-view ${live.complete ? 'finished' : ''}`} aria-live="polite">
-    <header><span className="live-pulse"><Radio size={16}/></span><div><small>{live.complete ? 'Omgången avslutad' : 'Live · preliminärt'}</small><strong>Skarpa raden</strong></div><b>{correct}/{decided.length}</b></header>
-    <div className="live-progress"><i style={{ width: `${decided.length ? correct / decided.length * 100 : 0}%` }}/></div>
+    <header><span className="live-pulse"><Radio size={16}/></span><div><small>{live.complete ? 'Omgången avslutad' : 'Live · preliminärt'}</small><strong>Skarpa raden</strong></div><b className="live-correct"><span>{correct}</span><small>{live.complete ? 'rätt' : 'rätt live'}</small></b></header>
+    <div className="live-progress"><i style={{ width: `${correct / 13 * 100}%` }}/></div>
     <p>{live.complete ? `${correct} av 13 matcher täcktes av systemet.` : ongoing ? `${ongoing} matcher pågår · uppdateras regelbundet` : 'Nästa match inväntas.'}</p>
     {freshness}
     <div className="live-matches">{displayMatches.map((match) => {

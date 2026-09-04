@@ -6,6 +6,7 @@ import { AliasApproval } from './components/AliasApproval';
 import { ClaimPanel, ParticipantResults, PreviousResultButton } from './components/ParticipantPool';
 import { LiveView } from './components/LiveView';
 import { ExpertSourceStatus } from './components/ExpertSourceStatus';
+import { buildLivePreview } from './data/livePreview';
 import { getAliasReview, getClaimRounds, getCurrentRound, getExpertStats, getLatestRunStatus, subscribeLiveStatus } from './services/firebase';
 import type { AliasReview, ClaimRound, Classification, ExpertStats, LatestRunStatus, LiveStatus, Round } from './types';
 import logo from './assets/ts-gubbarnas-dundertips.png';
@@ -14,6 +15,7 @@ type Filter = 'all' | 'strong' | 'consensus' | 'disagreement' | 'deviation';
 const swedishDate = (date: string) => new Intl.DateTimeFormat('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${date}T12:00:00`));
 
 export default function App() {
+  const livePreviewEnabled = import.meta.env.DEV && new URLSearchParams(window.location.search).get('preview') === 'live';
   const [round, setRound] = useState<Round>(); const [demo, setDemo] = useState(false);
   const [review, setReview] = useState<AliasReview>(); const [latestRun, setLatestRun] = useState<LatestRunStatus>(); const [stats, setStats] = useState<ExpertStats>(); const [claims, setClaims] = useState<ClaimRound[]>([]); const [liveStatus, setLiveStatus] = useState<LiveStatus>(); const [liveConnectionError, setLiveConnectionError] = useState(false); const [error, setError] = useState(''); const [filter, setFilter] = useState<Filter>('all');
   const refreshClaims = async () => setClaims(await getClaimRounds());
@@ -28,9 +30,11 @@ export default function App() {
   const sourceNames: Record<string,string> = { rekatochklart:'Rekatochklart', bettingstugan:'Bettingstugan', understreckat:'Understreckat', tipsmedoss:'Tipsmedoss', tipper:'Tipper', svenskaspel:'Svenska Spel' };
   const failedLatestSources = latestRun && !latestRun.published ? Object.entries(latestRun.statuses).filter(([, source]) => source.status === 'ERROR').map(([source]) => sourceNames[source] ?? source) : [];
   const currentSourceStatuses = latestRun?.roundDate === round.roundDate ? { ...round.sources, ...latestRun.statuses } : round.sources;
-  const currentClaim = claims.find((claim) => claim.roundDate === round.roundDate && claim.status !== 'settled') ?? claims.find((claim) => claim.roundDate === round.roundDate);
+  const livePreview = livePreviewEnabled ? buildLivePreview(round) : undefined;
+  const currentClaim = livePreview?.claim ?? claims.find((claim) => claim.roundDate === round.roundDate && claim.status !== 'settled') ?? claims.find((claim) => claim.roundDate === round.roundDate);
+  const displayedLiveStatus = livePreview?.live ?? liveStatus;
   return <>
-    <header className="hero"><nav><a className="brand" href="./" aria-label="TS-Gubbarnas Dundertips"><img src={logo} alt="TS-Gubbarnas Dundertips"/></a><span className="live"><i/> Uppdaterad</span></nav><div className="hero-grid"><div className="hero-copy"><div className="eyebrow">Veckans kupong · {swedishDate(round.roundDate)}</div><h1>Tretton rätt,<br/><em>Plättlätt!</em></h1><p className="intro">{round.officialOnly ? 'Svenska Spels nya kupong är publicerad. Expertanalyserna läggs till när de finns tillgängliga.' : 'Experttips från Rekatochklart, Bettingstugan, Tipper och Tipsmedoss — jämförda match för match.'}</p><div className="meta"><span><b>13</b> matcher</span><span>{round.officialOnly ? <b>Experttips inväntas</b> : <><b>{round.expertCount}</b> experter</>}</span><span><b>{new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' }).format(new Date(round.updatedAt))}</b> uppdaterad</span></div></div><div className="hero-live-column"><LiveView live={liveStatus} claim={currentClaim} roundDate={round.roundDate} connectionError={liveConnectionError}/><PreviousResultButton claims={claims} live={liveStatus}/></div></div></header>
+    <header className="hero"><nav><a className="brand" href="./" aria-label="TS-Gubbarnas Dundertips"><img src={logo} alt="TS-Gubbarnas Dundertips"/></a><span className="live"><i/> {livePreviewEnabled ? 'Simulerad live' : 'Uppdaterad'}</span></nav><div className="hero-grid"><div className="hero-copy"><div className="eyebrow">Veckans kupong · {swedishDate(round.roundDate)}</div><h1>Tretton rätt,<br/><em>Plättlätt!</em></h1><p className="intro">{round.officialOnly ? 'Svenska Spels nya kupong är publicerad. Expertanalyserna läggs till när de finns tillgängliga.' : 'Experttips från Rekatochklart, Bettingstugan, Tipper och Tipsmedoss — jämförda match för match.'}</p><div className="meta"><span><b>13</b> matcher</span><span>{round.officialOnly ? <b>Experttips inväntas</b> : <><b>{round.expertCount}</b> experter</>}</span><span><b>{new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' }).format(new Date(round.updatedAt))}</b> uppdaterad</span></div></div><div className="hero-live-column"><LiveView live={displayedLiveStatus} claim={currentClaim} roundDate={round.roundDate} connectionError={livePreviewEnabled ? false : liveConnectionError}/><PreviousResultButton claims={claims} live={displayedLiveStatus}/></div></div></header>
     <main>
       {!round.officialOnly && <section className="summary"><div><Flame/><span><b>{counts.strong}</b> spikkandidater</span></div><div><CheckCircle2/><span><b>{counts.consensus}</b> med konsensus</span></div><div><AlertTriangle/><span><b>{counts.disagreement}</b> oense</span></div><div><ShieldCheck/><span><b>{deviationCount}</b> expertavvikelser</span></div></section>}
       {round.officialOnly && <div className="notice">Den nya kupongen är hämtad från Svenska Spel. Streck och odds visas nu; expertkonsensus och systemförslag publiceras när källorna är kompletta.</div>}
