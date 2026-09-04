@@ -11,10 +11,12 @@ export function LiveView({ live, claim, roundDate, connectionError = false }: { 
   if (!live || live.roundDate !== roundDate) return null;
   const checkedAt = Date.parse(live.lastSuccessAt ?? live.updatedAt);
   const age = Number.isFinite(checkedAt) ? now - checkedAt : Number.POSITIVE_INFINITY;
-  const critical = connectionError || live.phase === 'degraded' || age > 20 * 60_000;
-  const stale = !critical && age > 10 * 60_000;
+  const monitoringExpected = Boolean(live.pollRecommended || live.active) && !live.complete;
+  const critical = connectionError || (monitoringExpected && (live.phase === 'degraded' || age > 20 * 60_000));
+  const stale = monitoringExpected && !critical && age > 10 * 60_000;
   const checkedLabel = Number.isFinite(checkedAt) ? new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' }).format(new Date(checkedAt)) : 'okänd tid';
-  const freshness = <details className="live-health"><summary>Live-status</summary><div className={`live-freshness ${critical ? 'critical' : stale ? 'stale' : ''}`}>{critical ? 'Offline, nytt försök pågår' : stale ? 'Uppdateringen är försenad' : 'Senast kontrollerad'} · {checkedLabel}{live.consecutiveFailures ? ` · ${live.consecutiveFailures} misslyckade försök` : ''}</div></details>;
+  const freshnessText = critical ? 'Offline, nytt försök pågår' : stale ? 'Uppdateringen är försenad' : monitoringExpected ? 'Senast kontrollerad' : live.complete ? 'Slutresultat kontrollerat' : 'Livebevakning förberedd';
+  const freshness = <details className="live-health"><summary>Live-status</summary><div className={`live-freshness ${critical ? 'critical' : stale ? 'stale' : ''}`}>{freshnessText} · {checkedLabel}{monitoringExpected && live.consecutiveFailures ? ` · ${live.consecutiveFailures} misslyckade försök` : ''}</div></details>;
   if (!live.pollRecommended && !live.active && !live.complete) {
     const remaining = Math.max(0, (firstStart ?? now) - now); const days = Math.floor(remaining / 86_400_000); const hours = Math.floor(remaining % 86_400_000 / 3_600_000); const minutes = Math.floor(remaining % 3_600_000 / 60_000);
     return <section className="live-view countdown-view"><header><span className="live-pulse"><Clock3 size={16}/></span><div><small>Nästa omgång</small><strong>{remaining ? 'Avspark om' : 'Veckans matcher'}</strong></div><b>{remaining ? days ? `${days}d ${hours}h` : `${hours}h ${minutes}m` : '13 matcher'}</b></header>{freshness}<div className="countdown-matches">{live.matches.map((match) => <div key={match.matchNumber}><span>{match.matchNumber}</span><strong>{match.homeTeam}–{match.awayTeam}</strong><time dateTime={match.matchStart}>{new Intl.DateTimeFormat('sv-SE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(match.matchStart))}</time></div>)}</div></section>;
