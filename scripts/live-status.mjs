@@ -103,7 +103,10 @@ export function parseLiveDraw(payload, now = new Date()) {
   const firstStart = Math.min(...starts); const started = matches.some((match) => ['InProgress','Ended','Cancelled'].includes(match.sportEventStatus)) || now.getTime() >= firstStart;
   const complete = matches.every((match) => ['Ended','Cancelled'].includes(match.sportEventStatus));
   const phase = complete ? 'complete' : matches.some((match) => match.sportEventStatus === 'InProgress') ? 'active' : started ? 'between' : 'scheduled';
-  const liveStart = stockholmTime(String(draw.regCloseTime).slice(0, 10), 15).getTime();
+  // Start one hour before the first match instead of assuming a fixed kick-off.
+  // Keep 15:00 Stockholm time as a safe fallback for malformed upstream data.
+  const fallbackLiveStart = stockholmTime(String(draw.regCloseTime).slice(0, 10), 15).getTime();
+  const liveStart = Number.isFinite(firstStart) ? firstStart - 60 * 60_000 : fallbackLiveStart;
   const pollRecommended = !complete && now.getTime() >= liveStart;
   return { roundDate: String(draw.regCloseTime).slice(0, 10), drawNumber: Number(draw.drawNumber), updatedAt: now.toISOString(), lastAttemptAt: now.toISOString(), lastSuccessAt: now.toISOString(), nextExpectedUpdateAt: new Date(now.getTime() + (pollRecommended ? 5 : 60) * 60_000).toISOString(), consecutiveFailures: 0, schemaVersion: 2, phase, pollRecommended, started, active: phase === 'active', complete, matches };
 }

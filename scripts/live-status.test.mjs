@@ -68,7 +68,7 @@ test('läser tillbaka Firestore-formatet utan dataförlust', () => {
   assert.deepEqual(fromFirestoreDocument(document), value);
 });
 
-test('startar tät livebevakning klockan 15 svensk tid', () => {
+test('startar tät livebevakning en timme före första match', () => {
   assert.equal(stockholmTime('2026-08-22', 15).toISOString(), '2026-08-22T13:00:00.000Z');
   assert.equal(stockholmTime('2026-12-05', 15).toISOString(), '2026-12-05T14:00:00.000Z');
   const events = Array.from({ length: 13 }, (_, i) => event(i + 1, 'Inte startat'));
