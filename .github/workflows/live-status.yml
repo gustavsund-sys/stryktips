@@ -2,15 +2,6 @@ name: Update live results
 
 on:
   workflow_dispatch:
-  schedule:
-    # Skapa/uppdatera nedräkningen när den nya kupongen släpps på torsdagen.
-    - cron: '17 6-11 * * 4'
-    # Fyra oberoende starter per timme minskar risken att GitHubs försenade
-    # schemaläggning lämnar luckor. Varje session uppdaterar var femte minut
-    # i högst 10 min; nästa start tar sedan över fem minuter senare. Börja
-    # redan på förmiddagen så även omgångar med ovanligt tidig avspark täcks.
-    - cron: '2,17,32,47 8-23 * * 6'
-    - cron: '2,17,32,47 0-1 * * 0'
 
 permissions:
   contents: read
@@ -30,9 +21,8 @@ jobs:
       - name: Fetch and publish live status
         run: |
           attempts=1
-          if [ "$SCHEDULE" = "2,17,32,47 8-23 * * 6" ] || [ "$SCHEDULE" = "2,17,32,47 0-1 * * 0" ]; then
-            attempts=3
-          fi
+          # Den schemalagda bevakningen körs nu i Firebase. Detta jobb är en
+          # manuell reserv och gör därför ett kontrollerat försök.
           successes=0
           for attempt in $(seq 1 "$attempts"); do
             if output="$(node scripts/update-live-status.mjs)"; then
