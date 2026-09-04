@@ -17,6 +17,7 @@ import { addTeamAlias, sameTeam } from './normalization/teams';
 import { buildOfficialOnlyRound, officialCouponFingerprint, omitUndefined, planOfficialCoupon, preserveOfficialCoupon, registrationHasClosed } from './persistence';
 import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
 import { SIGNS, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
+import { refreshLiveStatus } from './live-status';
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 initializeApp(serviceAccountJson ? { credential: cert(JSON.parse(serviceAccountJson)) } : undefined);
@@ -239,4 +240,11 @@ export const scheduledUpdate = onSchedule({ schedule: '0 */3 * * 2-6', timeZone:
 
 export const manualUpdate = onRequest({ region: 'europe-west1', invoker: 'private' }, async (_request, response) => {
   try { response.json(await updateCurrentRound()); } catch (error) { logger.error(error); response.status(500).json({ error: error instanceof Error ? error.message : 'Okänt fel' }); }
+});
+
+// Firestore är navet för livevyn. Funktionen kör billigt var femte minut, men
+// hoppar över Svenska Spels API utanför den aktuella omgångens bevakningsfönster.
+export const scheduledLiveUpdate = onSchedule({ schedule: 'every 5 minutes', timeZone: 'Europe/Stockholm', region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1, retryCount: 1 }, async () => {
+  const result = await refreshLiveStatus(db);
+  logger.info(result.outcome === 'updated' ? 'Live-resultat publicerat till Firestore' : 'Ingen livehämtning behövs', result);
 });
