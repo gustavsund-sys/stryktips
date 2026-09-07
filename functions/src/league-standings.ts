@@ -45,14 +45,12 @@ export function parseLeagueTable(payload: UnknownRecord, expectedCode: LeagueCod
     if (!entry?.team?.name) throw new Error(`STANDINGS_INVALID_TEAM_${expectedCode}`);
     const teamName = String(entry.team.name);
     const suppliedTeamId = Number(entry.team.id);
-    const suppliedPosition = Number(entry.position);
     return {
-      position: Number.isInteger(suppliedPosition) && suppliedPosition > 0 ? suppliedPosition : index + 1,
+      position: index + 1,
       team: { id: Number.isInteger(suppliedTeamId) && suppliedTeamId > 0 ? suppliedTeamId : fallbackTeamId(expectedCode, teamName), name: teamName, shortName: String(entry.team.shortName ?? entry.team.name), tla: String(entry.team.tla ?? ''), ...(entry.team.crest ? { crest: String(entry.team.crest) } : {}) },
       playedGames: number(entry.playedGames, 'PLAYED'), won: number(entry.won, 'WON'), draw: number(entry.draw, 'DRAW'), lost: number(entry.lost, 'LOST'), points: number(entry.points, 'POINTS'), goalsFor: number(entry.goalsFor, 'GOALS_FOR'), goalsAgainst: number(entry.goalsAgainst, 'GOALS_AGAINST'), goalDifference: number(entry.goalDifference, 'GOAL_DIFFERENCE'),
     };
   }).sort((a: LeagueTableEntry, b: LeagueTableEntry) => a.position - b.position);
-  if (new Set(table.map((entry: LeagueTableEntry) => entry.position)).size !== table.length) throw new Error(`STANDINGS_DUPLICATE_POSITIONS_${expectedCode}`);
   if (new Set(table.map((entry: LeagueTableEntry) => entry.team.name.toLowerCase())).size !== table.length) throw new Error(`STANDINGS_DUPLICATE_TEAMS_${expectedCode}`);
   return { code: expectedCode, name: String(payload.competition.name), ...(payload.competition.emblem ? { emblem: String(payload.competition.emblem) } : {}), season: String(payload.season?.startDate ?? '').slice(0, 4), ...(Number.isFinite(Number(payload.season?.currentMatchday)) ? { currentMatchday: Number(payload.season.currentMatchday) } : {}), updatedAt: now.toISOString(), table };
 }
