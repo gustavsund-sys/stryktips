@@ -41,12 +41,13 @@ export function parseLeagueTable(payload: UnknownRecord, expectedCode: LeagueCod
   if (payload?.competition?.code !== expectedCode) throw new Error(`STANDINGS_COMPETITION_MISMATCH_${expectedCode}`);
   const total = payload?.standings?.find((standing: UnknownRecord) => standing?.type === 'TOTAL');
   if (!Array.isArray(total?.table) || total.table.length < 10) throw new Error(`STANDINGS_INCOMPLETE_${expectedCode}`);
-  const table = total.table.map((entry: UnknownRecord): LeagueTableEntry => {
+  const table = total.table.map((entry: UnknownRecord, index: number): LeagueTableEntry => {
     if (!entry?.team?.name) throw new Error(`STANDINGS_INVALID_TEAM_${expectedCode}`);
     const teamName = String(entry.team.name);
     const suppliedTeamId = Number(entry.team.id);
+    const suppliedPosition = Number(entry.position);
     return {
-      position: number(entry.position, 'POSITION'),
+      position: Number.isInteger(suppliedPosition) && suppliedPosition > 0 ? suppliedPosition : index + 1,
       team: { id: Number.isInteger(suppliedTeamId) && suppliedTeamId > 0 ? suppliedTeamId : fallbackTeamId(expectedCode, teamName), name: teamName, shortName: String(entry.team.shortName ?? entry.team.name), tla: String(entry.team.tla ?? ''), ...(entry.team.crest ? { crest: String(entry.team.crest) } : {}) },
       playedGames: number(entry.playedGames, 'PLAYED'), won: number(entry.won, 'WON'), draw: number(entry.draw, 'DRAW'), lost: number(entry.lost, 'LOST'), points: number(entry.points, 'POINTS'), goalsFor: number(entry.goalsFor, 'GOALS_FOR'), goalsAgainst: number(entry.goalsAgainst, 'GOALS_AGAINST'), goalDifference: number(entry.goalDifference, 'GOAL_DIFFERENCE'),
     };

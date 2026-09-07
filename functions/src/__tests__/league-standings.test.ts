@@ -23,4 +23,10 @@ describe('football-data.org-tabeller', () => {
     expect(first.table.map((entry) => entry.team.id)).toEqual(second.table.map((entry) => entry.team.id));
     expect(new Set(first.table.map((entry) => entry.team.id)).size).toBe(20);
   });
+
+  it('använder API-ordningen när placeringsnummer saknas', () => {
+    const withoutPositions = payload(); withoutPositions.standings[0].table.forEach((entry) => { entry.position = undefined as unknown as number; });
+    const result = parseLeagueTable(withoutPositions, 'PL');
+    expect(result.table.map((entry) => entry.position)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+  });
 });
