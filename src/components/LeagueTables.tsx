@@ -5,6 +5,7 @@ import type { FootballStandings, LeagueTable } from '../types';
 function TableContent({ league }: { league: LeagueTable }) {
   return <>
     <div className="league-table-scroll"><table><thead><tr><th>#</th><th>Lag</th><th>S</th><th>V</th><th>O</th><th>F</th><th>+/−</th><th>P</th></tr></thead><tbody>{league.table.map((entry) => <tr key={entry.team.id}><td>{entry.position}</td><td>{entry.team.crest && <img src={entry.team.crest} alt="" loading="lazy"/>}<strong>{entry.team.shortName || entry.team.name}</strong></td><td>{entry.playedGames}</td><td>{entry.won}</td><td>{entry.draw}</td><td>{entry.lost}</td><td>{entry.goalDifference > 0 ? '+' : ''}{entry.goalDifference}</td><td><b>{entry.points}</b></td></tr>)}</tbody></table></div>
+    {league.previousRound && <section className="league-previous-round"><header><small>Senaste resultaten</small><strong>Omgång {league.previousRound.matchday}</strong></header><div>{league.previousRound.matches.map((match) => <article key={match.id}><time dateTime={match.utcDate}>{new Intl.DateTimeFormat('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(match.utcDate))}</time><span><strong>{match.homeTeam.shortName}</strong><strong>{match.awayTeam.shortName}</strong></span><b>{match.score.home}<br/>{match.score.away}</b></article>)}</div></section>}
   </>;
 }
 

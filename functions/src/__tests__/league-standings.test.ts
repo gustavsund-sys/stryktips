@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseLeagueTable } from '../league-standings';
+import { parseLeagueMatches, parseLeagueTable } from '../league-standings';
 
 const payload = (code = 'PL') => ({ competition: { code, name: code === 'PL' ? 'Premier League' : 'Championship', emblem: 'https://example.com/emblem.png' }, season: { startDate: '2026-08-08', currentMatchday: 4 }, standings: [{ type: 'TOTAL', table: Array.from({ length: 20 }, (_, index) => ({ position: index + 1, team: { id: index + 100, name: `Lag ${index + 1}`, shortName: `Lag ${index + 1}`, tla: `L${index}` }, playedGames: 4, won: 2, draw: 1, lost: 1, points: 7, goalsFor: 6, goalsAgainst: 4, goalDifference: 2 })) }] });
 
@@ -28,5 +28,15 @@ describe('football-data.org-tabeller', () => {
     const withoutPositions = payload(); withoutPositions.standings[0].table.forEach((entry) => { entry.position = undefined as unknown as number; });
     const result = parseLeagueTable(withoutPositions, 'PL');
     expect(result.table.map((entry) => entry.position)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+  });
+
+  it('validerar och normaliserar föregående omgångs resultat', () => {
+    const matches = parseLeagueMatches({ competition: { code: 'PL' }, matches: [{ id: 44, utcDate: '2026-08-30T15:30:00Z', status: 'FINISHED', matchday: 3, homeTeam: { id: 1, name: 'Hemma FC', shortName: 'Hemma' }, awayTeam: { id: 2, name: 'Borta FC', shortName: 'Borta' }, score: { fullTime: { home: 2, away: 1 } } }] }, 'PL', 3);
+    expect(matches).toEqual([expect.objectContaining({ id: 44, matchday: 3, score: { home: 2, away: 1 } })]);
+  });
+
+  it('avvisar resultat från fel eller ofullständig omgång', () => {
+    expect(() => parseLeagueMatches({ competition: { code: 'ELC' }, matches: [] }, 'PL', 3)).toThrow('MATCHES_COMPETITION_MISMATCH_PL');
+    expect(() => parseLeagueMatches({ competition: { code: 'PL' }, matches: [] }, 'PL', 3)).toThrow('MATCHES_INCOMPLETE_PL');
   });
 });

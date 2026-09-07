@@ -37,5 +37,6 @@ export interface LiveStatus {
   lastAttemptAt?: string; lastSuccessAt?: string; nextExpectedUpdateAt?: string; consecutiveFailures?: number; lastError?: string; schemaVersion?: number;
 }
 export interface LeagueTableEntry { position: number; team: { id: number; name: string; shortName: string; tla: string; crest?: string }; playedGames: number; won: number; draw: number; lost: number; points: number; goalsFor: number; goalsAgainst: number; goalDifference: number; }
-export interface LeagueTable { code: 'PL' | 'ELC'; name: string; emblem?: string; season: string; currentMatchday?: number; updatedAt: string; table: LeagueTableEntry[]; }
+export interface LeagueMatch { id: number; utcDate: string; status: string; matchday: number; homeTeam: { id: number; name: string; shortName: string }; awayTeam: { id: number; name: string; shortName: string }; score: { home: number; away: number }; }
+export interface LeagueTable { code: 'PL' | 'ELC'; name: string; emblem?: string; season: string; currentMatchday?: number; updatedAt: string; table: LeagueTableEntry[]; previousRound?: { matchday: number; matches: LeagueMatch[] }; }
 export interface FootballStandings { source: 'football-data.org'; sourceUrl: string; updatedAt: string; leagues: Partial<Record<'PL' | 'ELC', LeagueTable>>; }
