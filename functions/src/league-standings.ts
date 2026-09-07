@@ -35,19 +35,24 @@ const number = (value: unknown, field: string): number => {
   return parsed;
 };
 
+const fallbackTeamId = (code: LeagueCode, name: string): number => Array.from(`${code}:${name.toLowerCase()}`).reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 2166136261);
+
 export function parseLeagueTable(payload: UnknownRecord, expectedCode: LeagueCode, now = new Date()): LeagueTable {
   if (payload?.competition?.code !== expectedCode) throw new Error(`STANDINGS_COMPETITION_MISMATCH_${expectedCode}`);
   const total = payload?.standings?.find((standing: UnknownRecord) => standing?.type === 'TOTAL');
   if (!Array.isArray(total?.table) || total.table.length < 10) throw new Error(`STANDINGS_INCOMPLETE_${expectedCode}`);
   const table = total.table.map((entry: UnknownRecord): LeagueTableEntry => {
     if (!entry?.team?.name) throw new Error(`STANDINGS_INVALID_TEAM_${expectedCode}`);
+    const teamName = String(entry.team.name);
+    const suppliedTeamId = Number(entry.team.id);
     return {
       position: number(entry.position, 'POSITION'),
-      team: { id: number(entry.team.id, 'TEAM_ID'), name: String(entry.team.name), shortName: String(entry.team.shortName ?? entry.team.name), tla: String(entry.team.tla ?? ''), ...(entry.team.crest ? { crest: String(entry.team.crest) } : {}) },
+      team: { id: Number.isInteger(suppliedTeamId) && suppliedTeamId > 0 ? suppliedTeamId : fallbackTeamId(expectedCode, teamName), name: teamName, shortName: String(entry.team.shortName ?? entry.team.name), tla: String(entry.team.tla ?? ''), ...(entry.team.crest ? { crest: String(entry.team.crest) } : {}) },
       playedGames: number(entry.playedGames, 'PLAYED'), won: number(entry.won, 'WON'), draw: number(entry.draw, 'DRAW'), lost: number(entry.lost, 'LOST'), points: number(entry.points, 'POINTS'), goalsFor: number(entry.goalsFor, 'GOALS_FOR'), goalsAgainst: number(entry.goalsAgainst, 'GOALS_AGAINST'), goalDifference: number(entry.goalDifference, 'GOAL_DIFFERENCE'),
     };
   }).sort((a: LeagueTableEntry, b: LeagueTableEntry) => a.position - b.position);
-  if (new Set(table.map((entry: LeagueTableEntry) => entry.position)).size !== table.length || new Set(table.map((entry: LeagueTableEntry) => entry.team.id)).size !== table.length) throw new Error(`STANDINGS_DUPLICATES_${expectedCode}`);
+  if (new Set(table.map((entry: LeagueTableEntry) => entry.position)).size !== table.length) throw new Error(`STANDINGS_DUPLICATE_POSITIONS_${expectedCode}`);
+  if (new Set(table.map((entry: LeagueTableEntry) => entry.team.name.toLowerCase())).size !== table.length) throw new Error(`STANDINGS_DUPLICATE_TEAMS_${expectedCode}`);
   return { code: expectedCode, name: String(payload.competition.name), ...(payload.competition.emblem ? { emblem: String(payload.competition.emblem) } : {}), season: String(payload.season?.startDate ?? '').slice(0, 4), ...(Number.isFinite(Number(payload.season?.currentMatchday)) ? { currentMatchday: Number(payload.season.currentMatchday) } : {}), updatedAt: now.toISOString(), table };
 }
 

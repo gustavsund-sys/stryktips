@@ -16,4 +16,11 @@ describe('football-data.org-tabeller', () => {
     const incomplete = payload(); incomplete.standings[0].table = incomplete.standings[0].table.slice(0, 5);
     expect(() => parseLeagueTable(incomplete, 'PL')).toThrow('STANDINGS_INCOMPLETE_PL');
   });
+
+  it('skapar stabila lag-ID:n när leverantörens ID saknas', () => {
+    const withoutIds = payload(); withoutIds.standings[0].table.forEach((entry) => { entry.team.id = undefined as unknown as number; });
+    const first = parseLeagueTable(withoutIds, 'PL'); const second = parseLeagueTable(withoutIds, 'PL');
+    expect(first.table.map((entry) => entry.team.id)).toEqual(second.table.map((entry) => entry.team.id));
+    expect(new Set(first.table.map((entry) => entry.team.id)).size).toBe(20);
+  });
 });
