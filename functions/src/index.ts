@@ -3,6 +3,7 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { defineSecret } from 'firebase-functions/params';
 import { buildHighChaparral, calculateRows, buildConsensus, limitSystemRows } from './consensus/engine';
 import { findCurrentArticle, fetchHtml, fetchLatestWordpressArticle } from './scrapers/fetch';
 import { extractPicksWithAI } from './scrapers/ai-fallback';
@@ -18,6 +19,9 @@ import { buildOfficialOnlyRound, officialCouponFingerprint, omitUndefined, planO
 import { addRoundToStats, parseOfficialResult, scoreCompetition, SVENSKA_SPEL_RESULTS_URL } from './results/statistics';
 import { SIGNS, type ExpertPick, type ExpertStatsDocument, type OfficialCoupon, type RoundDocument, type SourceId, type SourceStatus } from './types';
 import { refreshLiveStatus } from './live-status';
+import { updateLeagueStandings } from './league-standings';
+
+const footballDataApiKey = defineSecret('FOOTBALL_DATA_API_KEY');
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 initializeApp(serviceAccountJson ? { credential: cert(JSON.parse(serviceAccountJson)) } : undefined);
@@ -247,4 +251,10 @@ export const manualUpdate = onRequest({ region: 'europe-west1', invoker: 'privat
 export const scheduledLiveUpdate = onSchedule({ schedule: '* * * * *', timeZone: 'Europe/Stockholm', region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1, retryCount: 1 }, async () => {
   const result = await refreshLiveStatus(db);
   logger.info(result.outcome === 'updated' ? 'Live-resultat publicerat till Firestore' : 'Ingen livehämtning behövs', result);
+});
+
+// Tabellerna förändras långsamt och hämtas därför bara måndag och onsdag morgon.
+export const scheduledLeagueStandingsUpdate = onSchedule({ schedule: '0 7 * * 1,3', timeZone: 'Europe/Stockholm', region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1, retryCount: 1, secrets: [footballDataApiKey] }, async () => {
+  const result = await updateLeagueStandings(db, footballDataApiKey.value());
+  logger.info('Ligatabeller publicerade till Firestore', result);
 });

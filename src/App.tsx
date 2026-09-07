@@ -6,9 +6,10 @@ import { AliasApproval } from './components/AliasApproval';
 import { ClaimPanel, ParticipantResults, PreviousResultButton } from './components/ParticipantPool';
 import { LiveView } from './components/LiveView';
 import { ExpertSourceStatus } from './components/ExpertSourceStatus';
-import { buildLivePreview } from './data/livePreview';
-import { getAliasReview, getClaimRounds, getCurrentRound, getExpertStats, getLatestRunStatus, subscribeLiveStatus } from './services/firebase';
-import type { AliasReview, ClaimRound, Classification, ExpertStats, LatestRunStatus, LiveStatus, Round } from './types';
+import { LeagueTables } from './components/LeagueTables';
+import { buildLivePreview, buildStandingsPreview } from './data/livePreview';
+import { getAliasReview, getClaimRounds, getCurrentRound, getExpertStats, getFootballStandings, getLatestRunStatus, subscribeLiveStatus } from './services/firebase';
+import type { AliasReview, ClaimRound, Classification, ExpertStats, FootballStandings, LatestRunStatus, LiveStatus, Round } from './types';
 import logo from './assets/ts-gubbarnas-dundertips.png';
 
 type Filter = 'all' | 'strong' | 'consensus' | 'disagreement' | 'deviation';
@@ -17,9 +18,9 @@ const swedishDate = (date: string) => new Intl.DateTimeFormat('sv-SE', { weekday
 export default function App() {
   const livePreviewEnabled = import.meta.env.DEV && new URLSearchParams(window.location.search).get('preview') === 'live';
   const [round, setRound] = useState<Round>(); const [demo, setDemo] = useState(false);
-  const [review, setReview] = useState<AliasReview>(); const [latestRun, setLatestRun] = useState<LatestRunStatus>(); const [stats, setStats] = useState<ExpertStats>(); const [claims, setClaims] = useState<ClaimRound[]>([]); const [liveStatus, setLiveStatus] = useState<LiveStatus>(); const [liveConnectionError, setLiveConnectionError] = useState(false); const [error, setError] = useState(''); const [filter, setFilter] = useState<Filter>('all');
+  const [review, setReview] = useState<AliasReview>(); const [latestRun, setLatestRun] = useState<LatestRunStatus>(); const [stats, setStats] = useState<ExpertStats>(); const [standings, setStandings] = useState<FootballStandings>(); const [claims, setClaims] = useState<ClaimRound[]>([]); const [liveStatus, setLiveStatus] = useState<LiveStatus>(); const [liveConnectionError, setLiveConnectionError] = useState(false); const [error, setError] = useState(''); const [filter, setFilter] = useState<Filter>('all');
   const refreshClaims = async () => setClaims(await getClaimRounds());
-  useEffect(() => { Promise.all([getCurrentRound(), getAliasReview(), getLatestRunStatus(), getExpertStats(), getClaimRounds()]).then(([result, aliasReview, runStatus, expertStats, claimRounds]) => { setRound(result.round); setDemo(result.demo); setLatestRun(runStatus); setStats(expertStats); setClaims(claimRounds); if (aliasReview?.status === 'pending' && aliasReview.candidates.length) setReview(aliasReview); }).catch(() => setError('Kupongen kunde inte hämtas. Försök igen senare.')); }, []);
+  useEffect(() => { Promise.all([getCurrentRound(), getAliasReview(), getLatestRunStatus(), getExpertStats(), getClaimRounds(), getFootballStandings()]).then(([result, aliasReview, runStatus, expertStats, claimRounds, footballStandings]) => { setRound(result.round); setDemo(result.demo); setLatestRun(runStatus); setStats(expertStats); setClaims(claimRounds); setStandings(footballStandings); if (aliasReview?.status === 'pending' && aliasReview.candidates.length) setReview(aliasReview); }).catch(() => setError('Kupongen kunde inte hämtas. Försök igen senare.')); }, []);
   useEffect(() => subscribeLiveStatus((status) => { setLiveStatus(status); setLiveConnectionError(false); }, () => setLiveConnectionError(true)), []);
   const counts = useMemo(() => round?.matches.reduce((a, m) => ({ ...a, [m.classification]: a[m.classification] + 1 }), { strong: 0, consensus: 0, disagreement: 0, coverage: 0 } as Record<Classification, number>), [round]);
   if (error) return <main className="state"><AlertTriangle/><h1>Något gick fel</h1><p>{error}</p></main>;
@@ -33,6 +34,7 @@ export default function App() {
   const livePreview = livePreviewEnabled ? buildLivePreview(round) : undefined;
   const currentClaim = livePreview?.claim ?? claims.find((claim) => claim.roundDate === round.roundDate && claim.status !== 'settled') ?? claims.find((claim) => claim.roundDate === round.roundDate);
   const displayedLiveStatus = livePreview?.live ?? liveStatus;
+  const displayedStandings = livePreviewEnabled ? buildStandingsPreview() : standings;
   return <>
     <header className="hero"><nav><a className="brand" href="./" aria-label="TS-Gubbarnas Dundertips"><img src={logo} alt="TS-Gubbarnas Dundertips"/></a><span className="live"><i/> {livePreviewEnabled ? 'Simulerad live' : 'Uppdaterad'}</span></nav><div className="hero-grid"><div className="hero-copy"><div className="eyebrow">Veckans kupong · {swedishDate(round.roundDate)}</div><h1>Tretton rätt,<br/><em>Plättlätt!</em></h1><p className="intro">{round.officialOnly ? 'Svenska Spels nya kupong är publicerad. Expertanalyserna läggs till när de finns tillgängliga.' : 'Experttips från Rekatochklart, Bettingstugan, Tipper och Tipsmedoss — jämförda match för match.'}</p><div className="meta"><span><b>13</b> matcher</span><span>{round.officialOnly ? <b>Experttips inväntas</b> : <><b>{round.expertCount}</b> experter</>}</span><span><b>{new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' }).format(new Date(round.updatedAt))}</b> uppdaterad</span></div></div><div className="hero-live-column"><LiveView live={displayedLiveStatus} claim={currentClaim} roundDate={round.roundDate} connectionError={livePreviewEnabled ? false : liveConnectionError}/><PreviousResultButton claims={claims} live={displayedLiveStatus}/></div></div></header>
     <main>
@@ -44,6 +46,7 @@ export default function App() {
       {Object.entries(round.sources).filter(([, source]) => source.status === 'ERROR').map(([name, source]) => <div className="warning" key={name}><AlertTriangle size={18}/><span><b>{sourceNames[name] ?? name}</b> kunde inte uppdateras och ingår därför inte i den aktuella konsensusen.{source.message && <small>{source.message}</small>}</span></div>)}
       <ClaimPanel round={round} claim={currentClaim} claims={claims} live={liveStatus} onChanged={refreshClaims}/>
       <section className="content"><div className="matches"><div className="section-head"><div><small>13 matcher</small><h2>Match för match</h2></div>{!round.officialOnly && <div className="filters" role="group" aria-label="Filtrera matcher">{filters.map(([id, label]) => <button className={filter === id ? 'active' : ''} onClick={() => setFilter(id)} key={id}>{label}</button>)}</div>}</div><div className="match-list">{visible.map((match) => <MatchCard match={match} key={match.matchNumber}/>)}</div>{!visible.length && <p className="empty">Inga matcher i det här filtret.</p>}</div><aside><ExpertSourceStatus sources={currentSourceStatuses}/>{!round.officialOnly && <SystemPanel matches={round.matches} rows={round.systemRows} highChaparral={round.highChaparral} stats={stats}/>}<div className="source-card"><small>Källor</small><h3>Öppet redovisade tips</h3><p>Expertanalyserna sammanställs från externa källor. Svenska Spel används separat för officiell kupong och streckfördelning.</p>{Object.keys(currentSourceStatuses).map((source) => { const sources: Record<string,[string,string]> = { rekatochklart:['Rekatochklart','https://www.rekatochklart.com/tips/stryktipset/'], bettingstugan:['Bettingstugan','https://bettingstugan.se/stryktipset/'], understreckat:['Understreckat','https://understreckat.se/stryktipset'], tipsmedoss:['Tipsmedoss','https://tipsmedoss.com/category/stryktipsforslag/'], tipper:['Tipper','https://tipper.se/stryktipset'], svenskaspel:['Svenska Spel','https://spela.svenskaspel.se/stryktipset'] }; const link = sources[source] ?? [source,'#']; return <a key={source} href={link[1]} target="_blank" rel="noreferrer">{link[0]} ↗</a>; })}</div></aside></section>
+      <LeagueTables standings={displayedStandings}/>
       <ParticipantResults claims={claims}/>
     </main><footer><span>TS-Gubbarnas Dundertips</span><p>Spela ansvarsfullt. 18+ · En sammanställning, inte ett spelråd.</p></footer>
   </>;
