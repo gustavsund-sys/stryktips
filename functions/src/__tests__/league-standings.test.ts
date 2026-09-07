@@ -39,4 +39,10 @@ describe('football-data.org-tabeller', () => {
     expect(() => parseLeagueMatches({ competition: { code: 'ELC' }, matches: [] }, 'PL', 3)).toThrow('MATCHES_COMPETITION_MISMATCH_PL');
     expect(() => parseLeagueMatches({ competition: { code: 'PL' }, matches: [] }, 'PL', 3)).toThrow('MATCHES_INCOMPLETE_PL');
   });
+
+  it('ignorerar ej färdigspelade matcher i en omgång', () => {
+    const result = parseLeagueMatches({ competition: { code: 'PL' }, matches: [{ id: 1, utcDate: '2026-09-12T14:00:00Z', status: 'SCHEDULED', matchday: 4, homeTeam: { id: 1, name: 'Hemma' }, awayTeam: { id: 2, name: 'Borta' }, score: { fullTime: { home: null, away: null } } }, { id: 2, utcDate: '2026-09-12T16:00:00Z', status: 'FINISHED', matchday: 4, homeTeam: { id: 3, name: 'Hemmalag' }, awayTeam: { id: 4, name: 'Bortalag' }, score: { fullTime: { home: 1, away: 0 } } }] }, 'PL', 4);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(2);
+  });
 });

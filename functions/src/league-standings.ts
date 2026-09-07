@@ -109,11 +109,20 @@ export async function updateLeagueStandings(db: Firestore, apiKey: string, now =
   const results = await Promise.allSettled(LEAGUE_CODES.map(async (code) => {
     const response = await fetchWithRetry(`${FOOTBALL_DATA_API}/${code}/standings`, apiKey);
     const league = parseLeagueTable(await response.json() as UnknownRecord, code, now);
-    const previousMatchday = league.currentMatchday && league.currentMatchday > 1 ? league.currentMatchday - 1 : undefined;
-    if (!previousMatchday) return league;
+    const currentMatchday = league.currentMatchday;
+    if (!currentMatchday) return league;
     try {
-      const matchesResponse = await fetchWithRetry(`${FOOTBALL_DATA_API}/${code}/matches?matchday=${previousMatchday}`, apiKey);
-      return { ...league, previousRound: { matchday: previousMatchday, matches: parseLeagueMatches(await matchesResponse.json() as UnknownRecord, code, previousMatchday) } };
+      const fetchMatchday = async (matchday: number) => {
+        const matchesResponse = await fetchWithRetry(`${FOOTBALL_DATA_API}/${code}/matches?matchday=${matchday}`, apiKey);
+        return parseLeagueMatches(await matchesResponse.json() as UnknownRecord, code, matchday);
+      };
+      try {
+        return { ...league, previousRound: { matchday: currentMatchday, matches: await fetchMatchday(currentMatchday) } };
+      } catch (currentError) {
+        if (currentMatchday <= 1) throw currentError;
+        const previousMatchday = currentMatchday - 1;
+        return { ...league, previousRound: { matchday: previousMatchday, matches: await fetchMatchday(previousMatchday) } };
+      }
     } catch {
       const saved = previous?.leagues?.[code]?.previousRound;
       return saved ? { ...league, previousRound: saved } : league;
