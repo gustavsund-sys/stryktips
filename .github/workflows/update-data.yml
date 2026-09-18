@@ -8,7 +8,19 @@ on:
         required: true
         default: full
         type: choice
-        options: [full, official, claim, results, clear-challengers, migrate-challengers]
+        options: [full, official, claim, results, clear-challengers, migrate-challengers, rename-challenger]
+      source:
+        description: Nuvarande namn (endast rename-challenger)
+        required: false
+        type: string
+      target:
+        description: Korrekt namn (endast rename-challenger)
+        required: false
+        type: string
+      round_date:
+        description: Omgång YYYY-MM-DD; tomt använder aktuell omgång
+        required: false
+        type: string
   schedule:
     # Upptäck aktuell kupong via Svenska Spels API var tredje timme, oberoende av veckodag.
     - cron: '17 */3 * * *'
@@ -110,3 +122,10 @@ jobs:
       - name: Migrate current challenger tips to private storage
         if: needs.schedule-check.outputs.mode == 'migrate-challengers'
         run: node functions/lib/run-migrate-challengers.js
+      - name: Correct challenger participant
+        if: needs.schedule-check.outputs.mode == 'rename-challenger'
+        run: node functions/lib/run-rename-challenger.js
+        env:
+          CHALLENGER_SOURCE: ${{ inputs.source }}
+          CHALLENGER_TARGET: ${{ inputs.target }}
+          ROUND_DATE: ${{ inputs.round_date }}
