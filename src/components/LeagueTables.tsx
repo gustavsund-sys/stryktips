@@ -9,11 +9,12 @@ function TableContent({ league }: { league: LeagueTable }) {
   </>;
 }
 
-export function LeagueTables({ standings }: { standings?: FootballStandings }) {
+export function LeagueTables({ standings, page = false }: { standings?: FootballStandings; page?: boolean }) {
   const [open, setOpen] = useState<'PL' | 'ELC'>();
   const available = (['PL', 'ELC'] as const).filter((code) => standings?.leagues[code]);
   useEffect(() => { if (!open) return; const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(undefined); }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [open]);
-  if (!standings || !available.length) return null;
+  if (!standings || !available.length) return page ? <main className="results-page"><header className="results-heading"><h1>Ligatabeller</h1><p>Tabellerna är inte tillgängliga ännu.</p></header></main> : null;
+  if (page) return <main className="results-page league-page"><header className="results-heading"><span>Engelsk fotboll</span><h1>Ligatabeller</h1><p>Tabelläge och senaste resultaten från Premier League och Championship.</p></header>{available.map(code => <section className="results-card league-table-modal" key={code}><h2>{standings.leagues[code]!.name}</h2><TableContent league={standings.leagues[code]!}/></section>)}<a href={standings.sourceUrl} target="_blank" rel="noreferrer">Källa: football-data.org ↗</a></main>;
   const league = open ? standings.leagues[open] : undefined;
   return <>
     <section className="league-table-launcher" aria-label="Ligatabeller"><span><Table2 size={16}/><strong>Ligatabeller</strong></span>{available.map((code) => <button type="button" onClick={() => setOpen(code)} key={code}>{code === 'PL' ? 'Premier League' : 'Championship'}</button>)}</section>
