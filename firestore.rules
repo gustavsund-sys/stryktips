@@ -34,7 +34,7 @@ service cloud.firestore {
           && request.resource.data.status == 'claimed'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participant', 'draftBase', 'draftTips', 'draftRows', 'draftSavedAt'])
           && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
-          && request.resource.data.draftBase in ['expert', 'chaparral']
+          && request.resource.data.draftBase in ['expert', 'chaparral', 'blank']
           && request.resource.data.draftTips is list && request.resource.data.draftTips.size() == 13
           && request.resource.data.draftRows is int && request.resource.data.draftRows > 0 && request.resource.data.draftRows <= 300
           && request.resource.data.draftSavedAt == request.time)
@@ -43,8 +43,9 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'participant', 'challengers', 'base', 'originalTips', 'finalTips', 'rows', 'cost', 'lockedAt', 'draftBase', 'draftTips', 'draftRows', 'draftSavedAt'])
           && request.resource.data.status == 'locked'
           && request.resource.data.participant in ['Jocke', 'Tony', 'Gustav', 'Anders', 'Matta-Råsnygg', 'Christer']
-          && request.resource.data.base in ['expert', 'chaparral']
-          && request.resource.data.originalTips is list && request.resource.data.originalTips.size() == 13
+          && request.resource.data.base in ['expert', 'chaparral', 'blank']
+          && request.resource.data.originalTips is list
+          && request.resource.data.originalTips.size() == (request.resource.data.base == 'blank' ? 0 : 13)
           && request.resource.data.finalTips is list && request.resource.data.finalTips.size() == 13
           && request.resource.data.rows is int && request.resource.data.rows > 0 && request.resource.data.rows <= 300
           && request.resource.data.cost == request.resource.data.rows

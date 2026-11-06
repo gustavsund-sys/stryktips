@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { collection, connectFirestoreEmulator, deleteField, doc, getDoc, getDocs, getFirestore, onSnapshot, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
-import type { AliasCandidate, AliasReview, ClaimRound, ExpertStats, FootballStandings, LatestRunStatus, LiveStatus, Participant, Round, Tip } from '../types';
+import type { AliasCandidate, AliasReview, ClaimBase, ClaimRound, ExpertStats, FootballStandings, LatestRunStatus, LiveStatus, Participant, Round, Tip } from '../types';
 import { demoRound } from '../data/demo';
 
 const config = { apiKey: import.meta.env.VITE_FIREBASE_API_KEY, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, appId: import.meta.env.VITE_FIREBASE_APP_ID };
@@ -89,7 +89,7 @@ export async function claimRound(roundDate: string, participant: Participant, pa
   await runTransaction(db, async (transaction) => { const snapshot = await transaction.get(ref); if (!snapshot.exists() || snapshot.data().status !== 'unclaimed') throw new Error('Omgången har redan claimats'); transaction.update(ref, { status: 'claimed', participant, claimedAt: serverTimestamp() }); });
 }
 
-export async function saveClaimDraft(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', draftTips: Tip[], password: string): Promise<void> {
+export async function saveClaimDraft(roundDate: string, participant: Participant, base: ClaimBase, draftTips: Tip[], password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (draftTips.length !== 13 || draftTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Utkastet måste innehålla 13 giltiga matcher');
   const draftRows = draftTips.reduce((total, tip) => total * tip.length, 1); if (draftRows > 300) throw new Error('Systemet får inte överstiga 300 rader');
@@ -99,7 +99,7 @@ export async function saveClaimDraft(roundDate: string, participant: Participant
   });
 }
 
-export async function lockClaimRound(roundDate: string, participant: Participant, base: 'expert' | 'chaparral', originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
+export async function lockClaimRound(roundDate: string, participant: Participant, base: ClaimBase, originalTips: Tip[], finalTips: Tip[], password: string): Promise<void> {
   if (!db) throw new Error('Firebase är inte konfigurerat'); await loginGroup(password);
   if (finalTips.length !== 13 || finalTips.some((tip) => !['1','X','2','1X','X2','12','1X2'].includes(tip))) throw new Error('Raden måste innehålla 13 giltiga matcher');
   const rows = finalTips.reduce((total, tip) => total * tip.length, 1); if (rows > 300) throw new Error('Systemet får inte överstiga 300 rader');

@@ -20,10 +20,11 @@ export interface ChallengerTip {
   participant: Participant; base: 'expert' | 'chaparral' | 'blank'; originalTips?: Tip[]; finalTips?: Tip[];
   rows: number; cost: number; lockedAt?: { toDate: () => Date }; result?: SystemResult;
 }
+export type ClaimBase = 'expert' | 'chaparral' | 'blank';
 export interface ClaimRound {
   roundDate: string; drawNumber: number; status: 'unclaimed' | 'claimed' | 'locked' | 'settled'; participant?: Participant;
-  base?: 'expert' | 'chaparral'; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
-  draftBase?: 'expert' | 'chaparral'; draftTips?: Tip[]; draftRows?: number; draftSavedAt?: { toDate: () => Date };
+  base?: ClaimBase; originalTips?: Tip[]; finalTips?: Tip[]; rows?: number; cost?: number;
+  draftBase?: ClaimBase; draftTips?: Tip[]; draftRows?: number; draftSavedAt?: { toDate: () => Date };
   lockAt?: { toDate: () => Date }; result?: SystemResult; officialResult?: OfficialResult; challengers?: Partial<Record<Participant, ChallengerTip>>;
   round?: Round;
 }
