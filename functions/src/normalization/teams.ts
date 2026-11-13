@@ -3,6 +3,8 @@ const aliases: Record<string, string> = {
   'spurs': 'tottenham hotspur', 'wolves': 'wolverhampton wanderers', 'wolverhampton': 'wolverhampton wanderers', 'nottm forest': 'nottingham forest',
   'sheff utd': 'sheffield united', 'sheffield u': 'sheffield united', 'sheff wed': 'sheffield wednesday', 'qpr': 'queens park rangers',
   'psg': 'paris saint germain', 'inter': 'internazionale',
+  'bosnien': 'bosnien and hercegovina', 'mk dons': 'milton keynes dons',
+  'sheffield w': 'sheffield wednesday', 'afc wimbledon': 'wimbledon',
 };
 
 export function normalizeTeam(value: string): string {

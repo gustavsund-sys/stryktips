@@ -21,7 +21,7 @@ export async function fetchLatestWordpressArticle(apiUrl: string, titlePattern: 
   return { url: post.link, html: `<article><div class="entry-content">${post.content.rendered}</div></article>` };
 }
 
-export function findCurrentArticle(indexHtml: string, baseUrl: string): string {
+export function findArticleCandidates(indexHtml: string, baseUrl: string): string[] {
   const $ = cheerio.load(indexHtml); const base = new URL(baseUrl);
   const candidates = $('a[href]').map((_, element) => {
     try {
@@ -37,6 +37,11 @@ export function findCurrentArticle(indexHtml: string, baseUrl: string): string {
       return score ? { url: url.toString(), score } : null;
     } catch { return null; }
   }).get().filter((item): item is { url: string; score: number } => Boolean(item)).sort((a, b) => b.score - a.score);
-  if (!candidates.length) throw new Error('ARTICLE_NOT_FOUND');
-  return candidates[0].url;
+  return [...new Set(candidates.map(({ url }) => url))];
+}
+
+export function findCurrentArticle(indexHtml: string, baseUrl: string): string {
+  const [first] = findArticleCandidates(indexHtml, baseUrl);
+  if (!first) throw new Error('ARTICLE_NOT_FOUND');
+  return first;
 }

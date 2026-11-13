@@ -5,7 +5,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { buildHighChaparral, calculateRows, buildConsensus, limitSystemRows } from './consensus/engine';
-import { findCurrentArticle, fetchHtml, fetchLatestWordpressArticle } from './scrapers/fetch';
+import { findArticleCandidates, findCurrentArticle, fetchHtml, fetchLatestWordpressArticle } from './scrapers/fetch';
 import { extractPicksWithAI } from './scrapers/ai-fallback';
 import { BETTINGSTUGAN_INDEX, parseBettingstugan } from './scrapers/bettingstugan';
 import { REKATOCHKLART_INDEX, parseRekatochklart } from './scrapers/rekatochklart';
@@ -157,6 +157,16 @@ async function scrapeOnce(source: Scraper, useAI: boolean): Promise<ExpertPick[]
   try { const picks = source.parse(html, articleUrl); validatePicks(picks); return picks; }
   catch (parserError) {
     logger.warn('Parsern hittade inte en komplett kupong', { source: source.id, articleUrl, htmlBytes: html.length, title: html.match(/<title[^>]*>([^<]*)/i)?.[1]?.trim() });
+    if (source.id === 'bettingstugan') {
+      const index = await fetchHtml(source.indexUrl);
+      for (const candidate of findArticleCandidates(index, source.indexUrl).filter((url) => url !== articleUrl).slice(0, 4)) {
+        try {
+          const picks = source.parse(await fetchHtml(candidate), candidate);
+          validatePicks(picks);
+          return picks;
+        } catch { /* Try the next article when this one has no complete system. */ }
+      }
+    }
     if (!useAI) throw parserError;
     const picks = await extractPicksWithAI(html, source.id, articleUrl); if (!picks) throw parserError; validatePicks(picks); return picks;
   }
